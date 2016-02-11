@@ -7,6 +7,7 @@
 #include <move_base_msgs/MoveBaseAction.h>
 #include <geometry_msgs/Twist.h>
 #include <geometry_msgs/TransformStamped.h>
+#include <geometry_msgs/PoseStamped.h>
 #include <nav_msgs/OccupancyGrid.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <grid_mapping/OccupancyGrid.h>
@@ -71,8 +72,8 @@ std::shared_ptr<MoveAC> move_ac;
 
 void panFeedbackCB(const panorama::PanoramaFeedbackConstPtr& feedback)
 {
-  ROS_INFO("[exploration_manager]: frames captured: %d",
-      feedback->frames_captured);
+  //ROS_INFO("[exploration_manager]: frames captured: %d",
+  //    feedback->frames_captured);
 }
 
 void panActiveCB()
@@ -301,9 +302,10 @@ bool capturePanorama()
   panorama::PanoramaGoal pan_goal;
   pan_goal.file_name = tf_prefix + "pan" + std::to_string(++pan_count);
   pan_ac->sendGoal(pan_goal, &panDoneCB, &panActiveCB, &panFeedbackCB);
+  ROS_INFO("[exploration_manager]: sent panorama goal to action server");
   pan_ac->waitForResult();
   if (pan_file.size() == 0) {
-    ROS_WARN("[exploration_manager]: Panorama action returned no file");
+    ROS_ERROR("[exploration_manager]: Panorama action returned no file");
     --pan_count;
     return false;
   }
@@ -352,25 +354,22 @@ bool capturePanorama()
   // read panoaram capture location
   rosbag::Bag panbag;
   panbag.open(pan_file, rosbag::bagmode::Read);
-  csqmi_exploration::PanGoal pan_pose_msg;
+  csqmi_exploration::PanGoal pan_pose;
   for (auto m : rosbag::View(panbag, rosbag::TopicQuery("panorama_pose"))) {
-    auto msg = m.instantiate<geometry_msgs::TransformStamped>();
+    auto msg = m.instantiate<geometry_msgs::PoseStamped>();
     if (msg) {
-      pan_pose_msg.frame_id = msg->header.frame_id;
-      pan_pose_msg.goal_id = robot_id*100 + pan_count;
-      pan_pose_msg.x = msg->transform.translation.x;
-      pan_pose_msg.y = msg->transform.translation.y;
-      pan_pose_pub.publish(pan_pose_msg);
+      pan_pose.frame_id = msg->header.frame_id;
+      pan_pose.goal_id = robot_id*100 + pan_count;
+      pan_pose.x = msg->pose.position.x;
+      pan_pose.y = msg->pose.position.y;
+      pan_pose_pub.publish(pan_pose);
       ROS_INFO("[exploration_manager]: %s published panorama pose with id %d",
-          tf_prefix.c_str(), pan_pose_msg.goal_id);
+          tf_prefix.c_str(), pan_pose.goal_id);
       break;
     }
   }
   panbag.close();
-  grid_mapping::Point panorama_position;
-  panorama_position.x = pan_pose_msg.x;
-  panorama_position.y = pan_pose_msg.y;
-  pan_locations.push_back(panorama_position);
+  pan_locations.push_back(grid_mapping::Point(pan_pose.x, pan_pose.y));
 
   return true;
 }
