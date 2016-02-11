@@ -93,12 +93,6 @@ Panorama::Panorama(ros::NodeHandle nh_, ros::NodeHandle pnh_, string name) :
     xtion.setImageRegistration(openni::ImageRegistrationMode::
       IMAGE_REGISTRATION_DEPTH_TO_COLOR);
   }
-
-  // update color camera settings on xtion
-  if (!camera_auto_settings) {
-    xtion.turnOffColorCameraAutoSettings();
-    xtion.setColorCameraExposure(exposure);
-  }
 }
 
 // constrain and angle to (-pi, pi]
@@ -175,6 +169,9 @@ void Panorama::sendSpinCommand(double speed)
 //      the pose of the robot when the captureLoop began
 void Panorama::captureLoop()
 {
+  // turn off auto exposure / white balance during panorama
+  xtion.enableColorCameraAutoSettings(false);
+
   // calculate capture angles
   double start_angle;
   {
@@ -189,17 +186,20 @@ void Panorama::captureLoop()
   }
 
   // open bag
+  ROS_INFO("[panorama] openning bag");
   string full_file_name = save_directory + '/' + file_name + ".bag";
   rosbag::Bag bag;
   bag.open(full_file_name.c_str(), rosbag::bagmode::Write);
 
   // save panorama pose
+  ROS_INFO("[panorama] saving panorama pose");
   TransformStamped t_robot_world;
   getTrans(world_frame, robot_frame, ros::Time(0), t_robot_world);
   PoseStamped pano_pose = transToPose(t_robot_world);
   bag.write("panorama_pose", pano_pose.header.stamp, pano_pose);
 
   // save camera info messages
+  ROS_INFO("[panorama] saving camera info messages");
   bag.write("color_camera_info", rgbd_ptr->color_info->header.stamp,
       rgbd_ptr->color_info);
   bag.write("depth_camera_info", rgbd_ptr->depth_info->header.stamp,
@@ -210,6 +210,7 @@ void Panorama::captureLoop()
   int frame = 1;
   double last_frame_heading = current_heading, total_turn = 0.0;
   bool complete = false;
+  ROS_INFO("[panorama] beginning frame loop");
   while (!complete) {
 
     // check if action has been cancelled
@@ -227,7 +228,9 @@ void Panorama::captureLoop()
       capture_frame = sgn(headDiff(capture_angles[frame])) != sgn(spin_speed);
     } else {
       // in continuous mode, only capture frames when robot is turning
+      double tmp = -sgn(spin_speed)*headDiff(last_frame_heading);
       capture_frame = -sgn(spin_speed)*headDiff(last_frame_heading) > 0.01;
+      ROS_INFO_THROTTLE(0.1, "[panorama] tmp = %.4f, capture_frame = %d", tmp, capture_frame);
     }
 
     // save data if the robot has reached the desired frame heading
@@ -275,6 +278,10 @@ void Panorama::captureLoop()
   panorama::PanoramaResult result;
   result.full_file_name = full_file_name;
   as.setSucceeded(result);
+
+  // turn on auto exposure / white balance after complete (so that the camera
+  // automatically picks reasonable values for the next pano)
+  xtion.enableColorCameraAutoSettings(true);
 }
 
 } // panorama namespace
