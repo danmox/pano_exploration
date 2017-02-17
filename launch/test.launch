@@ -1,0 +1,19 @@
+<launch>
+
+    <arg name="tf_prefix"   default="robot1"/>
+    <arg name="camera"      default="xtion"/>
+
+    <group ns="$(arg tf_prefix)">
+
+        <include file="$(find panorama)/launch/panorama_nodelet.launch">
+            <arg name="world_frame"     value="$(arg tf_prefix)/map"/>
+            <arg name="camera_frame"    value="$(arg tf_prefix)/$(arg camera)_rgb_frame"/>
+            <arg name="robot_frame"     value="$(arg tf_prefix)/base_link"/>
+            <arg name="camera"          value="$(arg camera)"/>
+            <arg name="manager"         value="$(arg camera)/$(arg camera)_nodelet_manager"/>
+            <arg name="debug"           value="true"/>
+        </include>
+
+    </group>
+
+</launch>

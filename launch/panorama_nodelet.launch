@@ -1,0 +1,34 @@
+<launch>
+
+    <arg name="debug"               default="false" />
+    <arg name="spin_speed"          default="0.5" />
+    <arg name="number_of_frames"    default="36" />
+    <arg name="save_directory"      default="$(env ROS_HOME)/panoramas" />
+    <arg name="world_frame" />
+    <arg name="robot_frame" />
+    <arg name="camera_frame" />
+    <arg name="odom_frame" />
+    <arg name="camera" />
+
+    <arg name="name"            value="panorama_action_server"/>
+    <arg name="nodelet_name"    value="$(arg name)_nodelet"/>
+    <arg name="manager"         default="$(arg nodelet_name)_manager"/>
+
+    <node pkg="nodelet" type="nodelet" name="$(arg nodelet_name)" 
+        args="load panorama/PanoramaNodelet $(arg manager)" output="screen">
+        <remap from="depth"    to="$(arg camera)/depth_registered/image_raw" />
+        <remap from="color"    to="$(arg camera)/rgb/image_rect_color" />
+        <remap from="odom"     to="wheel_odometry" />
+        <remap from="velocity" to="velocity_commands" />
+
+        <param name="debug"             value="$(arg debug)" />
+        <param name="spin_speed"        value="$(arg spin_speed)" />
+        <param name="number_of_frames"  value="$(arg number_of_frames)" />
+        <param name="save_directory"    value="$(arg save_directory)" />
+        <param name="world_frame"       value="$(arg world_frame)" />
+        <param name="camera_frame"      value="$(arg camera_frame)" />
+        <param name="robot_frame"       value="$(arg robot_frame)" />
+        <param name="odom_frame"        value="$(arg odom_frame)" />
+    </node>
+
+</launch>

@@ -1,0 +1,8 @@
+# goal
+string name
+---
+# result
+bool success
+---
+# feedback
+uint8 frames_captured

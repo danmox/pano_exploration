@@ -1,0 +1,46 @@
+<launch>
+    <arg name="robot"                   default="1" />
+
+    <arg name="linear_velocity"         default="150" />
+    <arg name="max_angular_velocity"    default="0.75" />
+    <arg name="Kp"                      default="0.6" />
+    <arg name="Ki"                      default="0.00" />
+    <arg name="Kd"                      default="0.00" />
+    <arg name="integral_threshold"      default="10" />
+    <arg name="tolerance"               default="0.05" />
+    <arg name="obstacle_tolerance"      default="0.5" />
+    <arg name="debug"                   default="false" />
+
+    <arg name="start_mocap"             default="false" />
+    <arg name="start_robot"             default="false" />
+
+    <include if="$(arg start_mocap)" 
+        file="$(find mocap_optitrack)/launch/tim.launch" >
+        <arg name="robot" value="$(arg robot)" />
+    </include>
+
+    <include if="$(arg start_robot)"
+        file="$(find core)/launch/tim.launch" >
+        <arg name="robot" value="$(arg robot)" />
+    </include>
+
+    <arg name="name" value="waypoint_navigation_action_server"/>
+    <arg name="node_name" value="$(arg name)_node"/>
+
+    <node pkg="waypoint_nav" type="waypoint_nav_node" name="$(arg node_name)" 
+        launch-prefix="gdb --args" output="screen">
+        <remap from="pose"                      to="mobile_base/pose2D" />
+        <remap from="velocity"                  to="cmd_vel_mux/input/navi" />
+        <remap from="scan"                      to="transformed_scan" />
+
+        <param name="linear_velocity"           value="$(arg linear_velocity)" />
+        <param name="max_angular_velocity"      value="$(arg max_angular_velocity)" />
+        <param name="Kp"                        value="$(arg Kp)" />
+        <param name="Ki"                        value="$(arg Ki)" />
+        <param name="Kd"                        value="$(arg Kd)" />
+        <param name="integral_threshold"        value="$(arg integral_threshold)" />
+        <param name="tolerance"                 value="$(arg tolerance)" />
+        <param name="obstacle_tolerance"        value="$(arg obstacle_tolerance)" />
+        <param name="debug"                     value="$(arg debug)" />
+    </node>
+</launch>
