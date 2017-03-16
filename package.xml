@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<package>
+  <name>csqmi_planning</name>
+  <version>0.0.0</version>
+  <description>The csqmi_planning package</description>
+  <maintainer email="daniel@todo.todo">daniel</maintainer>
+
+  <license>TODO</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>roscpp</build_depend>
+  <run_depend>roscpp</run_depend>
+
+</package>
