@@ -6,6 +6,7 @@
 #include <geometry_msgs/Pose2D.h>
 #include <sensor_msgs/LaserScan.h>
 #include <vector>
+#include <iostream>
 
 namespace grid_mapping {
 
@@ -28,6 +29,8 @@ class OccGrid : public GridBase
         const geometry_msgs::Pose2DConstPtr&);
 
     std::vector<double> filterLaserScan(const sensor_msgs::LaserScanConstPtr&);
+
+    friend std::ostream& operator<<(std::ostream& out, const OccGrid& grid);
 };
 
 } // namespace grid_mapping

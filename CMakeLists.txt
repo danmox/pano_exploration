@@ -8,7 +8,12 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   nav_msgs
   sensor_msgs
+  rosbag
+  geometry_msgs
+  tf
 )
+
+find_package(OpenCV REQUIRED)
 
 catkin_package(
   INCLUDE_DIRS include
@@ -17,6 +22,7 @@ catkin_package(
     roscpp
     nav_msgs
     sensor_msgs
+  DEPENDS OpenCV
 )
 
 include_directories(
@@ -32,3 +38,6 @@ set(SOURCE_FILES
 
 add_library(${PROJECT_NAME} ${SOURCE_FILES})
 target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES})
+
+add_executable(grid_test src/main.cpp)
+target_link_libraries(grid_test ${PROJECT_NAME} ${catkin_LIBRARIES} ${OpenCV_LIBS})

@@ -4,7 +4,7 @@
 namespace grid_mapping {
 
 GridBase::GridBase(Point origin_, double res, int w_, int h_) :
-  origin(origin), resolution(res), w(w_), h(h_)
+  origin(origin_), resolution(res), w(w_), h(h_)
 {
 }
 

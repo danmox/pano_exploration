@@ -22,8 +22,6 @@ OccGrid::OccGrid(const nav_msgs::OccupancyGrid::ConstPtr& msg) :
 
 void OccGrid::update(const OccGrid* grid)
 {
-  int layer_in = grid->w*grid->h;
-  int layer = w*h;
   int w_in = grid->w;
   int origin_offset = positionToIndex(grid->origin);
   for (int i = 0; i < grid->h; ++i) {
@@ -108,15 +106,17 @@ std::vector<double> OccGrid::filterLaserScan(const sensor_msgs::
 
     it = nan_it;
   }
+
+  return ranges;
 }
 
 void OccGrid::insertScan(const sensor_msgs::LaserScanConstPtr& scan, 
     const geometry_msgs::Pose2DConstPtr& pose)
 {
   // check if scan falls within the map; resize the map if necessary
-  Point origin(pose->x, pose->y);
-  Point scan_bbx_min = origin - scan->range_max;
-  Point scan_bbx_max = origin + scan->range_max;
+  Point scan_origin(pose->x, pose->y);
+  Point scan_bbx_min = scan_origin - scan->range_max;
+  Point scan_bbx_max = scan_origin + scan->range_max;
   if (!inBounds(scan_bbx_min) || !inBounds(scan_bbx_max))
     expandMap(scan_bbx_min, scan_bbx_max);
 
@@ -127,16 +127,17 @@ void OccGrid::insertScan(const sensor_msgs::LaserScanConstPtr& scan,
   // build lists of cells to update
   double angle = pose->theta + scan->angle_min;
   int ranges_size = scan->ranges.size();
-  for (double range: filterLaserScan(scan)) {
+  std::vector<double> ranges = filterLaserScan(scan);
+  for (double range : ranges) {
     // determine cells intercepted by ray
-    Point ray_end = origin + range*Point(cos(angle), sin(angle));
+    Point ray_end = scan_origin + range*Point(cos(angle), sin(angle));
 
     // update list of occupied cells to update if an object was encountered
     if (range < scan->range_max)
       occupied_cells.emplace(positionToIndex(ray_end));
 
     // update list of free cells
-    for (int cell : rayCast(origin, ray_end))
+    for (int cell : rayCast(scan_origin, ray_end))
       free_cells.emplace(cell);
 
     angle += scan->angle_increment;
@@ -167,6 +168,24 @@ void OccGrid::insertMap(const OccGrid& in)
 
   // update local grid with in_grid data
   update(&in);
+}
+
+std::ostream& operator<<(std::ostream& out, const OccGrid& grid)
+{
+  std::cout << std::endl;
+  std::cout << "info:" << std::endl;
+  std::cout << "  origin: " << grid.origin << std::endl;
+  std::cout << "  w: " << grid.w << std::endl;
+  std::cout << "  h: " << grid.h << std::endl;
+  std::cout << "  resolution: " << grid.resolution << std::endl;
+  std::cout << "data:" << std::endl;
+  for (int i = 0; i < grid.data.size(); ++i) {
+    if (i % grid.w != 0)
+      std::cout << grid.data[i] << ", ";
+    else
+      std::cout << std::endl << "  " << grid.data[i] << ", ";
+  }
+  std::cout << std::endl;
 }
 
 } // namespace grid_mapping
