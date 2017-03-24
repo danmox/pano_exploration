@@ -21,10 +21,15 @@ class OccGrid : public GridBase
     OccGrid(Point, double, int, int);
     OccGrid(const nav_msgs::OccupancyGrid::ConstPtr&);
 
-    void update(const OccGrid*);
+    virtual void update(const OccGrid*);
+    virtual void update(const Point, const int, const int);
+
     void expandMap(const Point, const Point);
+    template<typename Grid>
     void insertROSGridMsg(const nav_msgs::OccupancyGrid::ConstPtr&);
-    void insertMap(const OccGrid&);
+    template<typename Grid>
+    void insertMap(const Grid&);
+
     void insertScan(const sensor_msgs::LaserScanConstPtr&,
         const geometry_msgs::Pose2DConstPtr&);
 

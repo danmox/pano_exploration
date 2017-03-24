@@ -20,6 +20,18 @@ OccGrid::OccGrid(const nav_msgs::OccupancyGrid::ConstPtr& msg) :
     data.push_back(cell / 100.0);
 }
 
+// update existing map to have new dimensions
+void OccGrid::update(const Point new_origin, const int w_new, const int h_new)
+{
+  OccGrid new_grid(new_origin, resolution, w_new, h_new);
+  new_grid.update(this);
+  origin = new_origin;
+  w = w_new;
+  h = h_new;
+  data = new_grid.data;
+}
+
+// update existing map with other map info
 void OccGrid::update(const OccGrid* grid)
 {
   int w_in = grid->w;
@@ -53,12 +65,7 @@ void OccGrid::expandMap(const Point p_min, const Point p_max)
   int h_new = round((new_top_corner.y - new_origin.y) / resolution) + 1;
 
   // overwrite old map with new map
-  OccGrid new_grid(new_origin, resolution, w_new, h_new);
-  new_grid.update(this);
-  origin = new_origin;
-  w = w_new;
-  h = h_new;
-  data = new_grid.data;
+  update(new_origin, w_new, h_new);
 }
 
 std::vector<double> OccGrid::filterLaserScan(const sensor_msgs::
@@ -129,14 +136,11 @@ void OccGrid::insertScan(const sensor_msgs::LaserScanConstPtr& scan,
   int ranges_size = scan->ranges.size();
   std::vector<double> ranges = filterLaserScan(scan);
   for (double range : ranges) {
-    // determine cells intercepted by ray
     Point ray_end = scan_origin + range*Point(cos(angle), sin(angle));
 
-    // update list of occupied cells to update if an object was encountered
     if (range < scan->range_max)
       occupied_cells.emplace(positionToIndex(ray_end));
 
-    // update list of free cells
     for (int cell : rayCast(scan_origin, ray_end))
       free_cells.emplace(cell);
 
@@ -154,16 +158,18 @@ void OccGrid::insertScan(const sensor_msgs::LaserScanConstPtr& scan,
     data[cell] += LOG_ODDS_OCCUPIED;
 }
 
+template<typename Grid>
 void OccGrid::insertROSGridMsg(const nav_msgs::OccupancyGrid::ConstPtr& msg)
 {
-  OccGrid in(msg);
+  Grid in(msg);
   insertMap(in);
 }
 
-void OccGrid::insertMap(const OccGrid& in)
+template <typename Grid>
+void OccGrid::insertMap(const Grid& in)
 {
   // ensure current map spans input map
-  if ( !inBounds(in.origin) || !inBounds(in.topCorner()) )
+  if (!inBounds(in.origin) || !inBounds(in.topCorner()))
     expandMap(in.origin, in.topCorner());
 
   // update local grid with in_grid data
