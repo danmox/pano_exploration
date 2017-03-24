@@ -88,8 +88,8 @@ bool GridBase::indexToPositionChecked(const int cell, Point& p) const
 
 int GridBase::positionToIndex(const double x, const double y) const
 {
-  return roundToMapRes((x - origin.x) / resolution) + 
-    roundToMapRes((y - origin.y) / resolution)*w;
+  return round((x-origin.x)/resolution) + 
+    round((y-origin.y)/resolution)*w;
 }
 
 int GridBase::positionToIndex(const Point p) const
@@ -103,8 +103,7 @@ bool GridBase::positionToIndexChecked(const double x, const double y,
   if (!inBounds(x, y))
     return false;
 
-  index = roundToMapRes((x - origin.x) / resolution) + 
-    roundToMapRes((y - origin.y) / resolution)*w;
+  index = positionToIndex(x,y);
   return true;
 }
 
@@ -207,18 +206,11 @@ int_vec GridBase::rayCast(const Point p1, Point p2) const
   const Point dp = p2 - p1;
   const double steps = round(dp.abs().max() / resolution);
   const Point ds = dp / steps; // Point(dx, dy)
+
+  int it = 0;
   Point current_position = p1;
-  double dl = ds.norm(); // increment beam length
-
-  for (int iterations = 0; iterations != (int)steps + 1; ++iterations) {
-    int index;
-    if (!positionToIndexChecked(current_position, index)) {
-      ROS_FATAL_STREAM("GridBase::rayCast(...): unable to convert current "
-          "point " << current_position << " to index");
-      exit(EXIT_FAILURE);
-    }
-
-    indices.push_back(index);
+  while (it++ <= steps) {
+    indices.push_back(positionToIndex(current_position));
     current_position += ds;
   }
 

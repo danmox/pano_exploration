@@ -18,13 +18,21 @@ using namespace grid_mapping;
 
 cv::Mat createGridImage(const OccGrid& grid)
 {
-  std::vector<char> map_data;
+  std::vector<int> map_data;
   std::transform(grid.data.begin(), grid.data.end(), 
       std::back_inserter(map_data), 
-      [](double a){ return static_cast<char>(255.0*(1.0-1.0/(1.0+exp(a))));});
+      [](double a){ return static_cast<int>(255*(1.0/(1.0+exp(-a)))) ;});
   cv::Mat img = cv::Mat(map_data).reshape(0, grid.h);
   img.convertTo(img, CV_8UC1);
+  cv::flip(img, img, 0);
   return img;
+}
+
+void displayImage(const cv::Mat& img, const std::string name)
+{
+  cv::namedWindow(name, cv::WINDOW_NORMAL);
+  cv::imshow(name, img);
+  cv::waitKey(0);
 }
 
 void displayImageComplement(const cv::Mat& img, const std::string name)
