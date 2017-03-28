@@ -24,6 +24,7 @@ class AngleGrid : public OccGrid
 
     void insertScan(const sensor_msgs::LaserScanConstPtr&,
         const geometry_msgs::Pose2DConstPtr&);
+    int angleIndex(double);
 
     friend std::ostream& operator<<(std::ostream& out, const AngleGrid& grid);
 };

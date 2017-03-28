@@ -31,6 +31,7 @@ include_directories(
 )
 
 set(SOURCE_FILES
+  src/angle_grid.cpp
   src/grid_base.cpp
   src/occ_grid.cpp
   src/point.cpp

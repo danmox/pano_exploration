@@ -1,4 +1,4 @@
-#include "grid_mapping/occ_grid.h"
+#include "grid_mapping/angle_grid.h"
 #include <ros/ros.h>
 #include <rosbag/bag.h>
 #include <rosbag/view.h>
@@ -20,6 +20,24 @@ cv::Mat createGridImage(const OccGrid& grid)
 {
   std::vector<int> map_data;
   std::transform(grid.data.begin(), grid.data.end(), 
+      std::back_inserter(map_data), 
+      [](double a){ return static_cast<int>(255*(1.0/(1.0+exp(-a)))) ;});
+  cv::Mat img = cv::Mat(map_data).reshape(0, grid.h);
+  img.convertTo(img, CV_8UC1);
+  cv::flip(img, img, 0);
+  return img;
+}
+
+cv::Mat createGridImage(const AngleGrid& grid, const unsigned int layer=0)
+{
+  if (layer >= grid.layers) {
+    ROS_FATAL("createAngleGridImage(...): invalid layer argument");
+    exit(EXIT_FAILURE);
+  }
+  const int layer_size = grid.w*grid.h;
+  std::vector<int> map_data;
+  std::transform(grid.data.begin() + layer*layer_size, 
+      grid.data.begin() + (layer+1)*layer_size, 
       std::back_inserter(map_data), 
       [](double a){ return static_cast<int>(255*(1.0/(1.0+exp(-a)))) ;});
   cv::Mat img = cv::Mat(map_data).reshape(0, grid.h);
@@ -74,13 +92,16 @@ int main(int argc, char** argv)
   }
 
   Point origin(poses[0].x, poses[0].y);
-  OccGrid grid(origin, 0.1, 1, 1);
+  AngleGrid grid(origin, 0.1, 1, 1);
   for (int i = 0; i < scans.size(); ++i) {
     sensor_msgs::LaserScanConstPtr scan(new sensor_msgs::LaserScan(scans[i]));
     geometry_msgs::Pose2DConstPtr pose(new geometry_msgs::Pose2D(poses[i]));
     grid.insertScan(scan, pose);
-    displayImageComplement(createGridImage(grid), "grid");
+    //displayImageComplement(createGridImage(grid), "grid");
   }
+
+  for (int i = 0; i < grid.layers; ++i)
+    displayImageComplement(createGridImage(grid,i), "angle grid");
 
   return 0;
 }
