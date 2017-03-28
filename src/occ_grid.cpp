@@ -5,10 +5,11 @@
 
 namespace grid_mapping {
 
-OccGrid::OccGrid(Point origin_, double res, int w_, int h_) :
-  GridBase(origin_, res, w_, h_),
-  data(w_*h_, 0.0)
+OccGrid::OccGrid(Point origin_, double res, int w_, int h_, bool alloc_data) :
+  GridBase(origin_, res, w_, h_)
 {
+  if (alloc_data)
+    data = std::vector<double>(w*h, 0.0);
 }
 
 OccGrid::OccGrid(const nav_msgs::OccupancyGrid::ConstPtr& msg) :
