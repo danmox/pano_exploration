@@ -1,4 +1,4 @@
-#include <panorama/Panorama.h>
+#include "panorama/panorama.h"
 #include <panorama/PanoramaAction.h>
 #include <tf/transform_datatypes.h>
 #include <geometry_msgs/Point.h>

@@ -59,9 +59,9 @@ include_directories(
 )
 
 set(panorama_SOURCE_FILES
-    src/PanoramaNodelet.cpp
-    src/Panorama.cpp
-    src/PanoramaNode.cpp
+    src/panorama_nodelet.cpp
+    src/panorama.cpp
+    src/panorama_node.cpp
 )
 
 add_library(panorama_nodelet ${panorama_SOURCE_FILES})
@@ -72,6 +72,6 @@ add_executable(panorama_node ${panorama_SOURCE_FILES})
 add_dependencies(panorama_node ${catkin_LIBRARIES} ${${PROJECT_NAME}_EXPORTED_TARGETS})
 target_link_libraries(panorama_node ${catkin_LIBRARIES})
 
-add_executable(action_client src/PanoramaActionClient.cpp)
+add_executable(action_client src/panorama_action_client.cpp)
 add_dependencies(action_client ${PROJECT_NAME}_generate_messages_cpp)
 target_link_libraries(action_client ${catkin_LIBRARIES})

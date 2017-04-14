@@ -3,7 +3,7 @@
 
 #include <ros/ros.h>
 #include <nodelet/nodelet.h>
-#include <panorama/Panorama.h>
+#include "panorama/panorama.h"
 
 namespace panorama {
 

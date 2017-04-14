@@ -1,5 +1,5 @@
 #include <ros/ros.h>
-#include <panorama/Panorama.h>
+#include "panorama/panorama.h"
 
 int main(int argc, char** argv)
 {

@@ -1,4 +1,4 @@
-#include <panorama/PanoramaNodelet.h>
+#include "panorama/panorama_nodelet.h"
 
 namespace panorama {
 
