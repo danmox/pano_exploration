@@ -1,5 +1,5 @@
-#ifndef PANORAMA_CONVERT_HPP
-#define PANORAMA_CONVERT_HPP
+#ifndef PANORAMA_CONVERT_HPP_
+#define PANORAMA_CONVERT_HPP_
 
 #include <tf2_kdl/tf2_kdl.h>
 

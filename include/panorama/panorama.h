@@ -1,5 +1,7 @@
-#ifndef PANORAMA_H
-#define PANORAMA_H
+#ifndef PANORAMA_PANORAMA_H_
+#define PANORAMA_PANORAMA_H_
+
+#include "panorama/convert.hpp"
 
 #include <ros/ros.h>
 #include <actionlib/server/simple_action_server.h>
@@ -7,7 +9,6 @@
 #include <message_filters/synchronizer.h>
 #include <message_filters/sync_policies/approximate_time.h>
 
-#include "panorama/convert.hpp"
 #include <tf2/convert.h>
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_listener.h>
@@ -49,7 +50,7 @@ class Panorama
     tf2_ros::Buffer tf_buffer;
     tf2_ros::TransformListener listener;
     std::string world_frame, camera_frame, robot_frame, odom_frame;
-    
+
     double spin_speed, current_heading;
     int number_of_frames;
     std::string save_directory, file_name;

@@ -1,5 +1,5 @@
-#ifndef WAYPOINT_NAVIGATION_NODELET_H
-#define WAYPOINT_NAVIGATION_NODELET_H
+#ifndef PANORAMA_NODELET_H_
+#define PANORAMA_NODELET_H_
 
 #include <ros/ros.h>
 #include <nodelet/nodelet.h>
