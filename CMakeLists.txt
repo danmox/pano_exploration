@@ -3,6 +3,7 @@ project(panorama)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 set(CMAKE_BUILD_TYPE Debug)
+cmake_policy(SET CMP0046 OLD)
 
 find_package(catkin REQUIRED COMPONENTS
     geometry_msgs

@@ -9,12 +9,12 @@ namespace panorama {
 
 class PanoramaNodelet : public nodelet::Nodelet
 {
-    private:
-        ros::NodeHandle nh, pnh;
-        boost::shared_ptr<Panorama> pan;
-        
-    public:
-        virtual void onInit();
+  private:
+    ros::NodeHandle nh, pnh;
+    boost::shared_ptr<Panorama> pan;
+    
+  public:
+    virtual void onInit();
 };
 
 } // namespace panorama

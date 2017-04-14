@@ -6,11 +6,11 @@
 // define tf2::convert(...) interface for geometry_msgs::TransformStamped
 // and KDL::Frame types
 namespace tf2 {
-    inline
-    void fromMsg(const geometry_msgs::TransformStamped& msg, KDL::Frame& out)
-    {
-        out = transformToKDL(msg);
-    }
+  inline
+  void fromMsg(const geometry_msgs::TransformStamped& msg, KDL::Frame& out)
+  {
+    out = transformToKDL(msg);
+  }
 }
 
 #endif

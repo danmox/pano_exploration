@@ -4,11 +4,11 @@ namespace panorama {
 
 void PanoramaNodelet::onInit()
 {
-    nh = getNodeHandle();
-    pnh = getPrivateNodeHandle();
+  nh = getNodeHandle();
+  pnh = getPrivateNodeHandle();
 
-    std::string name = "panorama_action_server";
-    pan.reset(new Panorama(nh, pnh, name));
+  std::string name = "panorama_action_server";
+  pan.reset(new Panorama(nh, pnh, name));
 }
 
 } // namespace panorama
