@@ -72,6 +72,10 @@ Panorama::Panorama(ros::NodeHandle nh_, ros::NodeHandle pnh_, string name) :
 
   // start action server
   as.start();
+
+  // enable image registration on xtion
+  xtion.setImageRegistration(openni::ImageRegistrationMode::
+    IMAGE_REGISTRATION_DEPTH_TO_COLOR);
 }
 
 // constrain and angle to (-pi, pi]
@@ -94,6 +98,11 @@ void Panorama::syncCB(const openni2_xtion::RGBDFramePtr& rgbd_msg,
   rgbd_ptr = rgbd_msg;
   odom_ptr = odom;
   current_heading = constrainAngle(tf::getYaw(odom->pose.pose.orientation));
+  /*
+  ROS_DEBUG("Panorama::syncCB(...): messages received with timestamp "
+      "difference: %f", fabs(rgbd_msg->header.stamp.toSec() - 
+        odom->header.stamp.toSec()));
+        */
 }
 
 void Panorama::preemptCB()
