@@ -1,13 +1,10 @@
 #ifndef PANORAMA_PANORAMA_H_
 #define PANORAMA_PANORAMA_H_
 
-#include "panorama/convert.hpp"
-
 #include <ros/ros.h>
 #include <actionlib/server/simple_action_server.h>
-#include <message_filters/subscriber.h>
-#include <message_filters/synchronizer.h>
-#include <message_filters/sync_policies/approximate_time.h>
+
+#include <openni2_xtion/rgbd_sensor.h>
 
 #include <tf2/convert.h>
 #include <tf2_ros/buffer.h>
@@ -24,23 +21,21 @@
 
 #include <thread>
 #include <mutex>
+#include <functional>
 
 namespace panorama {
-
-typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image, 
-        sensor_msgs::Image, nav_msgs::Odometry> SyncPolicy;
-typedef message_filters::Synchronizer<SyncPolicy> Sync;
 
 class Panorama
 {
   private:
     ros::NodeHandle nh, pnh;
     ros::Publisher vel_pub;
+    ros::Subscriber odom_sub;
 
     // syncronize color, depth images with odometry
-    message_filters::Subscriber<sensor_msgs::Image> depth_sub, color_sub;
-    message_filters::Subscriber<nav_msgs::Odometry> odom_sub;
-    std::shared_ptr<Sync> sensor_sync;
+    openni2_xtion::RGBDSensor xtion;
+    openni2_xtion::TimeFilter<openni2_xtion::RGBDFramePtr, 
+      nav_msgs::OdometryConstPtr> time_filter;
 
     // actionlib
     actionlib::SimpleActionServer<panorama::PanoramaAction> as;
@@ -57,7 +52,7 @@ class Panorama
 
     // sensor data
     nav_msgs::Odometry::ConstPtr odom_ptr;
-    sensor_msgs::Image::ConstPtr depth_ptr, color_ptr;
+    openni2_xtion::RGBDFramePtr rgbd_ptr;
     std::mutex data_mutex;
 
     std::thread panorama_loop_thread;
@@ -80,8 +75,7 @@ class Panorama
     Panorama(ros::NodeHandle, ros::NodeHandle, std::string);
 
     void poseCB(const geometry_msgs::Pose2D::ConstPtr&);
-    void syncCB(const sensor_msgs::Image::ConstPtr&, 
-                const sensor_msgs::Image::ConstPtr&, 
+    void syncCB(const openni2_xtion::RGBDFramePtr&, 
                 const nav_msgs::Odometry::ConstPtr&);
     void goalCB();
     void preemptCB();

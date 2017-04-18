@@ -6,8 +6,50 @@ set(CMAKE_BUILD_TYPE Debug)
 cmake_policy(SET CMP0046 OLD)
 
 find_package(catkin REQUIRED COMPONENTS
+  geometry_msgs
+  message_generation
+  nodelet
+  roscpp
+  std_msgs
+  actionlib_msgs
+  actionlib
+  sensor_msgs
+  tf
+  tf2_geometry_msgs
+  tf2_kdl
+  nav_msgs
+  rosbag
+  openni2_xtion
+)
+
+# find openni2 include and library manually
+find_path(OPENNI2_INCLUDE_DIR OpenNI.h
+  HINTS "$ENV{OPENNI2_INCLUDE}" /usr/include/openni2
+)
+find_library(OPENNI2_LIBRARY
+  NAMES OpenNI2
+  HINTS "$ENV{OPENNI2_REDIST}" /usr/lib
+)
+
+add_action_files(
+  DIRECTORY
+    action
+  FILES
+    Panorama.action
+)
+
+generate_messages(
+  DEPENDENCIES
+    std_msgs
+    actionlib_msgs
+)
+
+catkin_package(
+  INCLUDE_DIRS include
+  LIBRARIES ${PROJECT_NAME}_nodelet
+  CATKIN_DEPENDS 
     geometry_msgs
-    message_generation
+    message_runtime 
     nodelet
     roscpp
     std_msgs
@@ -19,58 +61,24 @@ find_package(catkin REQUIRED COMPONENTS
     tf2_kdl
     nav_msgs
     rosbag
-)
-
-add_action_files(
-    DIRECTORY
-        action
-    FILES
-        Panorama.action
-)
-
-generate_messages(
-    DEPENDENCIES
-        std_msgs
-        actionlib_msgs
-)
-
-catkin_package(
-    INCLUDE_DIRS include
-    LIBRARIES ${PROJECT_NAME}_nodelet
-    CATKIN_DEPENDS 
-        geometry_msgs
-        message_runtime 
-        nodelet
-        roscpp
-        std_msgs
-        actionlib_msgs
-        actionlib
-        sensor_msgs
-        tf
-        tf2_geometry_msgs
-        tf2_kdl
-        nav_msgs
-        rosbag
+    openni2_xtion
 )
 
 include_directories(
-    include
-    ${catkin_INCLUDE_DIRS}
+  include
+  ${catkin_INCLUDE_DIRS}
+  ${OPENNI2_INCLUDE_DIR}
 )
 
-set(panorama_SOURCE_FILES
-    src/panorama_nodelet.cpp
-    src/panorama.cpp
-    src/panorama_node.cpp
-)
+add_library(panorama_nodelet src/panorama_nodelet.cpp src/panorama.cpp)
+add_dependencies(panorama_nodelet ${catkin_LIBRARIES} 
+  ${${PROJECT_NAME}_EXPORTED_TARGETS})
+target_link_libraries(panorama_nodelet ${catkin_LIBRARIES} ${OPENNI2_LIBRARY})
 
-add_library(panorama_nodelet ${panorama_SOURCE_FILES})
-add_dependencies(panorama_nodelet ${catkin_LIBRARIES} ${${PROJECT_NAME}_EXPORTED_TARGETS})
-target_link_libraries(panorama_nodelet ${catkin_LIBRARIES})
-
-add_executable(panorama_node ${panorama_SOURCE_FILES})
-add_dependencies(panorama_node ${catkin_LIBRARIES} ${${PROJECT_NAME}_EXPORTED_TARGETS})
-target_link_libraries(panorama_node ${catkin_LIBRARIES})
+add_executable(panorama_node src/panorama_node.cpp src/panorama.cpp)
+add_dependencies(panorama_node ${catkin_LIBRARIES} 
+  ${${PROJECT_NAME}_EXPORTED_TARGETS})
+target_link_libraries(panorama_node ${catkin_LIBRARIES} ${OPENNI2_LIBRARY})
 
 add_executable(action_client src/panorama_action_client.cpp)
 add_dependencies(action_client ${PROJECT_NAME}_generate_messages_cpp)

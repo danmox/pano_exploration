@@ -1,6 +1,5 @@
 #include "panorama/panorama.h"
 
-#include <panorama/PanoramaAction.h>
 #include <tf/transform_datatypes.h>
 #include <geometry_msgs/Point.h>
 #include <geometry_msgs/Quaternion.h>
@@ -47,12 +46,18 @@ Panorama::Panorama(ros::NodeHandle nh_, ros::NodeHandle pnh_, string name) :
     }
   }
 
-  // setup approximate time synchronizer for depth and color images
-  depth_sub.subscribe(nh, "depth", 30);
-  color_sub.subscribe(nh, "color", 30);
-  odom_sub.subscribe(nh, "odom", 30);
-  sensor_sync.reset(new Sync(SyncPolicy(30), depth_sub, color_sub, odom_sub));
-  sensor_sync->registerCallback(bind(&Panorama::syncCB, this, _1, _2, _3));
+  // setup approximate time synchronizer for RGBDFrames and Odometry msgs
+  typedef openni2_xtion::RGBDFramePtr RGBDPtr;
+  typedef nav_msgs::OdometryConstPtr OdomPtr;
+  typedef function<void(const RGBDPtr&)> t1fp;
+  typedef function<void(const OdomPtr&)> t2fp;
+  t1fp rgbd_cb = std::bind(&openni2_xtion::TimeFilter<RGBDPtr,OdomPtr>::t1CB, 
+      &time_filter, _1);
+  t2fp sync_cb = std::bind(&Panorama::syncCB, this, _1, _2);
+  odom_sub = nh.subscribe("odom", 10, 
+      &openni2_xtion::TimeFilter<RGBDPtr,OdomPtr>::t2CB, &time_filter); 
+  //xtion.registerCallback(rgbd_cb);
+  //time_filter.registerCallback(sync_cb);
 
   // fetch parameters and exit if any fails
   if (!pnh.getParam("spin_speed", spin_speed) ||
@@ -83,13 +88,11 @@ double constrainAngle(double angle)
 // store pointers to color and depth images and the robot pose estimated by
 // wheel odometry and compute the current heading of the robot as reported 
 // by wheel odometry
-void Panorama::syncCB(const sensor_msgs::Image::ConstPtr& depth, 
-                      const sensor_msgs::Image::ConstPtr& color, 
-                      const nav_msgs::Odometry::ConstPtr& odom)
+void Panorama::syncCB(const openni2_xtion::RGBDFramePtr& rgbd_msg, 
+                      const nav_msgs::OdometryConstPtr& odom)
 {
   lock_guard<mutex> lock(data_mutex);
-  depth_ptr = depth;
-  color_ptr = color;
+  rgbd_ptr = rgbd_msg;
   odom_ptr = odom;
   current_heading = constrainAngle(tf::getYaw(odom->pose.pose.orientation));
 }
@@ -197,8 +200,8 @@ void Panorama::captureLoop()
       {
         lock_guard<mutex> lock(data_mutex);
         // save image data to bag
-        bag.write("color_frame", color_ptr->header.stamp, color_ptr);
-        bag.write("depth_frame", depth_ptr->header.stamp, depth_ptr);
+        bag.write("color", rgbd_ptr->color->header.stamp, rgbd_ptr->color);
+        bag.write("depth", rgbd_ptr->depth->header.stamp, rgbd_ptr->depth);
         pt = odom_ptr->pose.pose.position;
         qt = odom_ptr->pose.pose.orientation;
         hd = odom_ptr->header;
