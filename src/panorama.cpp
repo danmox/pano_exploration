@@ -49,15 +49,14 @@ Panorama::Panorama(ros::NodeHandle nh_, ros::NodeHandle pnh_, string name) :
   // setup approximate time synchronizer for RGBDFrames and Odometry msgs
   typedef openni2_xtion::RGBDFramePtr RGBDPtr;
   typedef nav_msgs::OdometryConstPtr OdomPtr;
-  typedef function<void(const RGBDPtr&)> t1fp;
-  typedef function<void(const OdomPtr&)> t2fp;
-  t1fp rgbd_cb = std::bind(&openni2_xtion::TimeFilter<RGBDPtr,OdomPtr>::t1CB, 
-      &time_filter, _1);
-  t2fp sync_cb = std::bind(&Panorama::syncCB, this, _1, _2);
+  auto rgbd_cb = std::bind(&openni2_xtion::TimeFilter<RGBDPtr,OdomPtr>::t1CB, 
+      &time_filter, std::placeholders::_1);
+  auto sync_cb = std::bind(&Panorama::syncCB, this, std::placeholders::_1, 
+      std::placeholders::_2);
   odom_sub = nh.subscribe("odom", 10, 
       &openni2_xtion::TimeFilter<RGBDPtr,OdomPtr>::t2CB, &time_filter); 
-  //xtion.registerCallback(rgbd_cb);
-  //time_filter.registerCallback(sync_cb);
+  xtion.registerCallback(rgbd_cb);
+  time_filter.registerCallback(sync_cb);
 
   // fetch parameters and exit if any fails
   if (!pnh.getParam("spin_speed", spin_speed) ||
