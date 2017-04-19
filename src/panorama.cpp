@@ -59,13 +59,15 @@ Panorama::Panorama(ros::NodeHandle nh_, ros::NodeHandle pnh_, string name) :
   time_filter.registerCallback(sync_cb);
 
   // fetch parameters and exit if any fails
+  bool image_registration;
   if (!pnh.getParam("spin_speed", spin_speed) ||
     !pnh.getParam("number_of_frames", number_of_frames) ||
     !pnh.getParam("world_frame", world_frame) ||
     !pnh.getParam("camera_frame", camera_frame) ||
     !pnh.getParam("robot_frame", robot_frame) ||
     !pnh.getParam("odom_frame", odom_frame) ||
-    !pnh.getParam("save_directory", save_directory)) {
+    !pnh.getParam("save_directory", save_directory) ||
+    !pnh.getParam("image_registration", image_registration)) {
     ROS_FATAL("Panorama::Panorama(): failed to read params from server");
     exit(EXIT_FAILURE);
   }
@@ -74,8 +76,10 @@ Panorama::Panorama(ros::NodeHandle nh_, ros::NodeHandle pnh_, string name) :
   as.start();
 
   // enable image registration on xtion
-  xtion.setImageRegistration(openni::ImageRegistrationMode::
-    IMAGE_REGISTRATION_DEPTH_TO_COLOR);
+  if (image_registration) {
+    xtion.setImageRegistration(openni::ImageRegistrationMode::
+      IMAGE_REGISTRATION_DEPTH_TO_COLOR);
+  }
 }
 
 // constrain and angle to (-pi, pi]
