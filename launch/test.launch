@@ -1,18 +1,20 @@
 <launch>
 
-  <arg name="tf_prefix"     default="robot1"/>
-  <arg name="camera"        default="xtion"/>
+  <arg name="tf_prefix" default="robot1"/>
+  <arg name="camera" default="xtion"/>
   <arg name="odom_only" default="false"/>
+  <arg name="image_registration" default="true"/>
 
   <group ns="$(arg tf_prefix)">
 
     <!-- panorama nodelet -->
     <include file="$(find panorama)/launch/panorama_nodelet.launch">
-      <arg name="world_frame"     value="$(arg tf_prefix)/map"/>
-      <arg name="camera_frame"    value="$(arg tf_prefix)/$(arg camera)_rgb_frame"/>
-      <arg name="robot_frame"     value="$(arg tf_prefix)/base_link"/>
-      <arg name="odom_frame"      value="$(arg tf_prefix)/odom"/>
-      <arg name="debug"           value="false"/>
+      <arg name="world_frame"         value="$(arg tf_prefix)/map"/>
+      <arg name="camera_frame"        value="$(arg tf_prefix)/$(arg camera)_rgb_frame"/>
+      <arg name="robot_frame"         value="$(arg tf_prefix)/base_link"/>
+      <arg name="odom_frame"          value="$(arg tf_prefix)/odom"/>
+      <arg name="image_registration"  value="$(arg image_registration)"/>
+      <arg name="debug"               value="false"/>
     </include>
 
     <!-- camera transform tree -->
