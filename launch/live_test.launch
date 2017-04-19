@@ -1,8 +1,0 @@
-<launch>
-    <arg name="robot" default="1"/>
-
-    <group ns="robot$(arg robot)">
-        <node name="waypoint_navigation_live_test" pkg="waypoint_nav" type="live_test" 
-            output="screen" />
-    </group>
-</launch>
