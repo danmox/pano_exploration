@@ -12,7 +12,7 @@ class GridBase
     // data members
     int w, h;
     double resolution;
-    Point origin;
+    Point origin; // center of bottom-leftmost cell
 
     GridBase(Point, double, int, int);
 
@@ -24,7 +24,7 @@ class GridBase
     bool inBounds(const Point) const;
     Point bbxMin() const; // takes into account resolution
     Point bbxMax() const; // takes into account resolution
-    Point topCorner() const; // center of furthest cell
+    Point topCorner() const; // center of furthest cell from origin
 
     // index conversion methods for 2D grid stored as 1D array
     void indexToPosition(const int, double&, double&) const;
