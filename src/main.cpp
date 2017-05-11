@@ -66,42 +66,9 @@ int main(int argc, char** argv)
     ROS_FATAL("Please provide a bagfile");
     exit(EXIT_FAILURE);
   }
-  rosbag::Bag bag;
-  bag.open(argv[1], rosbag::bagmode::Read);
 
-  std::vector<sensor_msgs::LaserScan> scans;
-  std::vector<geometry_msgs::Pose2D> poses;
-  for (auto m : rosbag::View(bag)) {
-    sensor_msgs::LaserScanConstPtr s = m.instantiate<sensor_msgs::LaserScan>();
-    if (s)
-      scans.push_back(*s);
-    nav_msgs::OdometryConstPtr odom = m.instantiate<nav_msgs::Odometry>();
-    if (odom) {
-      geometry_msgs::Pose2D pose;
-      pose.x = odom->pose.pose.position.x;
-      pose.y = odom->pose.pose.position.y;
-      pose.theta = tf::getYaw(odom->pose.pose.orientation);
-      poses.push_back(pose);
-    }
-  }
-
-  if (scans.size() != poses.size()) {
-    ROS_FATAL("Unequal number of scans (%ld) and poses (%ld)", scans.size(),
-        poses.size());
-    exit(EXIT_FAILURE);
-  }
-
-  Point origin(poses[0].x, poses[0].y);
-  AngleGrid grid(origin, 0.1, 1, 1);
-  for (int i = 0; i < scans.size(); ++i) {
-    sensor_msgs::LaserScanConstPtr scan(new sensor_msgs::LaserScan(scans[i]));
-    geometry_msgs::Pose2DConstPtr pose(new geometry_msgs::Pose2D(poses[i]));
-    grid.insertScan(scan, pose);
-    //displayImageComplement(createGridImage(grid), "grid");
-  }
-
-  for (int i = 0; i < grid.layers; ++i)
-    displayImageComplement(createGridImage(grid,i), "angle grid");
+  AngleGrid grid(Point(0.0, 0.0), 0.1, 1, 1);
+  grid.insertPanorama(argv[1]);
 
   return 0;
 }

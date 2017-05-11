@@ -6,6 +6,7 @@
 #include <geometry_msgs/Pose2D.h>
 #include <sensor_msgs/LaserScan.h>
 #include <vector>
+#include <string.h>
 #include <iostream>
 
 namespace grid_mapping {
@@ -22,11 +23,10 @@ class AngleGrid : public OccGrid
     virtual void update(const AngleGrid*);
     virtual void update(const Point, const int, const int);
 
+    int angleIndex(double);
     void insertScan(const sensor_msgs::LaserScanConstPtr&,
         const geometry_msgs::Pose2DConstPtr&);
-    int angleIndex(double);
-
-    friend std::ostream& operator<<(std::ostream& out, const AngleGrid& grid);
+    void insertPanorama(const std::string);
 };
 
 } // namespace grid_mapping

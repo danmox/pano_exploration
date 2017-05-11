@@ -1,6 +1,12 @@
 #include "grid_mapping/angle_grid.h"
+#include <rosbag/bag.h>
+#include <rosbag/view.h>
+#include <geometry_msgs/PoseStamped.h>
+#include <geometry_msgs/TransformStamped.h>
+#include <sensor_msgs/Image.h>
 #include <unordered_set>
 #include <unordered_map>
+#include <deque>
 #include <algorithm>
 #include <iterator>
 #include <cmath>
@@ -117,6 +123,37 @@ void AngleGrid::insertScan(const sensor_msgs::LaserScanConstPtr& scan,
     data[cell_pair.first + d*cell_pair.second] += LOG_ODDS_OCCUPIED;
 }
 
-//std::ostream& operator<<(std::ostream& out, const AngleGrid& grid);
+// update the map from a saved panorama rosbag
+void AngleGrid::insertPanorama(const std::string bagfile)
+{
+  std::string path("/home/daniel/.ros/camera_info/");
+  std::string file("depth_PS1080_PrimeSense150.yaml");
+
+  rosbag::Bag bag;
+  bag.open(bagfile, rosbag::bagmode::Read);
+  
+  // extract panorama_pose
+  geometry_msgs::TransformStampedConstPtr pan_pose;
+  int idx = 0;
+  for (auto m : rosbag::View(bag)) {
+    pan_pose = m.instantiate<geometry_msgs::TransformStamped>();
+    if (pan_pose)
+      break;
+  }
+
+  std::deque<geometry_msgs::PoseStampedConstPtr> camera_poses;
+  std::deque<sensor_msgs::ImageConstPtr> depth_imgs;
+  for (auto m : rosbag::View(bag)) {
+    if (m.getTopic().compare("camera_pose") == 0)
+      camera_poses.push_back(m.instantiate<geometry_msgs::PoseStamped>());
+    else if (m.getTopic().compare("depth") == 0)
+      depth_imgs.push_back(m.instantiate<sensor_msgs::Image>());
+
+    if (!camera_poses.empty() && !depth_imgs.empty()) {
+      camera_poses.pop_front();
+      depth_imgs.pop_front();
+    }
+  }
+}
 
 } // namespace grid_mapping
