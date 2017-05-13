@@ -1,8 +1,10 @@
 #include "grid_mapping/angle_grid.h"
+#include <ros/ros.h>
 #include <rosbag/bag.h>
 #include <rosbag/view.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/TransformStamped.h>
+#include <sensor_msgs/LaserScan.h>
 #include <sensor_msgs/Image.h>
 #include <unordered_set>
 #include <unordered_map>
@@ -129,31 +131,68 @@ void AngleGrid::insertPanorama(const std::string bagfile)
   std::string path("/home/daniel/.ros/camera_info/");
   std::string file("depth_PS1080_PrimeSense150.yaml");
 
-  rosbag::Bag bag;
-  bag.open(bagfile, rosbag::bagmode::Read);
+  rosbag::Bag pan_bag;
+  pan_bag.open(bagfile, rosbag::bagmode::Read);
   
   // extract panorama_pose
   geometry_msgs::TransformStampedConstPtr pan_pose;
   int idx = 0;
-  for (auto m : rosbag::View(bag)) {
+  for (auto m : rosbag::View(pan_bag)) {
     pan_pose = m.instantiate<geometry_msgs::TransformStamped>();
     if (pan_pose)
       break;
   }
 
-  std::deque<geometry_msgs::PoseStampedConstPtr> camera_poses;
-  std::deque<sensor_msgs::ImageConstPtr> depth_imgs;
-  for (auto m : rosbag::View(bag)) {
-    if (m.getTopic().compare("camera_pose") == 0)
-      camera_poses.push_back(m.instantiate<geometry_msgs::PoseStamped>());
-    else if (m.getTopic().compare("depth") == 0)
-      depth_imgs.push_back(m.instantiate<sensor_msgs::Image>());
+  rosbag::Bag out_bag;
+  out_bag.open("laser_scans.bag", rosbag::bagmode::Write);
 
-    if (!camera_poses.empty() && !depth_imgs.empty()) {
+  // default camera intrinsic parameters based on the xtion
+  double w = 640;
+  double h = 480;
+  double Cx = 320.0;
+  double fx = 577.3;
+
+  std::deque<geometry_msgs::PoseStamped> camera_poses;
+  std::deque<sensor_msgs::Image> imgs;
+  for (auto m : rosbag::View(pan_bag)) {
+    if (m.getTopic().compare("camera_pose") == 0)
+      camera_poses.push_back(*(m.instantiate<geometry_msgs::PoseStamped>()));
+    else if (m.getTopic().compare("depth") == 0) {
+      sensor_msgs::ImageConstPtr img = m.instantiate<sensor_msgs::Image>();
+      imgs.push_back(*img);
+    }
+
+    if (!camera_poses.empty() && !imgs.empty()) {
+      sensor_msgs::LaserScan scan;
+      scan.angle_min = -atan2(w-1-Cx, fx);
+      scan.angle_max = atan2(Cx, fx);
+      scan.angle_increment = (scan.angle_max - scan.angle_min) / (w-1);
+      scan.time_increment = 0.0;
+      scan.scan_time = 1.0/30.0; // 30Hz
+      scan.range_min = 0.45; // Xtion min range
+      scan.range_max = 5.0; // Xtion max range
+      scan.header = imgs[0].header;
+      scan.header.frame_id = "world";
+      scan.ranges.reserve(w);
+
+      uint16_t* depth_row = reinterpret_cast<uint16_t*>(imgs[0].data.data());
+      depth_row += (int)((h/2) * w);
+      for (int u = 0; u < w; ++u) {
+        double z = depth_row[u] / 1000.0;
+        double x = (u - Cx) * z / fx;
+        double r = sqrt(pow(x, 2.0) + pow(z, 2.0));
+        scan.ranges.push_back(r);
+      }
+
+      out_bag.write("xtion_scan", scan.header.stamp, scan);
+
       camera_poses.pop_front();
-      depth_imgs.pop_front();
+      imgs.pop_front();
     }
   }
+
+  out_bag.close();
+  pan_bag.close();
 }
 
 } // namespace grid_mapping
