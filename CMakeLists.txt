@@ -35,6 +35,7 @@ set(SOURCE_FILES
   src/grid_base.cpp
   src/occ_grid.cpp
   src/point.cpp
+  src/common.cpp
 )
 
 add_library(${PROJECT_NAME} ${SOURCE_FILES})

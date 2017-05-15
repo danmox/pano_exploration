@@ -1,11 +1,14 @@
 #include "grid_mapping/angle_grid.h"
+#include "grid_mapping/common.h"
 #include <ros/ros.h>
 #include <rosbag/bag.h>
 #include <rosbag/view.h>
+#include <geometry_msgs/Pose2D.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/TransformStamped.h>
 #include <sensor_msgs/LaserScan.h>
 #include <sensor_msgs/Image.h>
+#include <tf/transform_datatypes.h>
 #include <unordered_set>
 #include <unordered_map>
 #include <deque>
@@ -128,25 +131,19 @@ void AngleGrid::insertScan(const sensor_msgs::LaserScanConstPtr& scan,
 // update the map from a saved panorama rosbag
 void AngleGrid::insertPanorama(const std::string bagfile)
 {
-  std::string path("/home/daniel/.ros/camera_info/");
-  std::string file("depth_PS1080_PrimeSense150.yaml");
-
   rosbag::Bag pan_bag;
   pan_bag.open(bagfile, rosbag::bagmode::Read);
   
-  // extract panorama_pose
-  geometry_msgs::TransformStampedConstPtr pan_pose;
+  // extract panorama_pose and convert to 2D pose
+  geometry_msgs::TransformStampedConstPtr pan_trans;
   int idx = 0;
   for (auto m : rosbag::View(pan_bag)) {
-    pan_pose = m.instantiate<geometry_msgs::TransformStamped>();
-    if (pan_pose)
+    pan_trans = m.instantiate<geometry_msgs::TransformStamped>();
+    if (pan_trans)
       break;
   }
 
-  rosbag::Bag out_bag;
-  out_bag.open("laser_scans.bag", rosbag::bagmode::Write);
-
-  // default camera intrinsic parameters based on the xtion
+  // default camera intrinsic parameters for the xtion
   double w = 640;
   double h = 480;
   double Cx = 320.0;
@@ -170,7 +167,7 @@ void AngleGrid::insertPanorama(const std::string bagfile)
       scan.time_increment = 0.0;
       scan.scan_time = 1.0/30.0; // 30Hz
       scan.range_min = 0.45; // Xtion min range
-      scan.range_max = 5.0; // Xtion max range
+      scan.range_max = 4.0; // Xtion max range
       scan.header = imgs[0].header;
       scan.header.frame_id = "world";
       scan.ranges.reserve(w);
@@ -184,14 +181,21 @@ void AngleGrid::insertPanorama(const std::string bagfile)
         scan.ranges.push_back(r);
       }
 
-      out_bag.write("xtion_scan", scan.header.stamp, scan);
+      // convert camera pose to 2D pose
+      geometry_msgs::Pose2D pose;
+      pose.x = camera_poses.front().pose.position.x;
+      pose.y = camera_poses.front().pose.position.y;
+      pose.theta = tf::getYaw(camera_poses.front().pose.orientation);
+
+      sensor_msgs::LaserScanConstPtr scan_ptr(new sensor_msgs::LaserScan(scan));
+      geometry_msgs::Pose2DConstPtr pose_ptr(new geometry_msgs::Pose2D(pose));
+      insertScan(scan_ptr, pose_ptr);
 
       camera_poses.pop_front();
       imgs.pop_front();
     }
   }
 
-  out_bag.close();
   pan_bag.close();
 }
 
