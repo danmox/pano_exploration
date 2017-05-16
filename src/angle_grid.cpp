@@ -144,10 +144,11 @@ void AngleGrid::insertPanorama(const std::string bagfile)
   }
 
   // default camera intrinsic parameters for the xtion
-  double w = 640;
-  double h = 480;
+  int img_w = 640;
+  int img_h = 480;
   double Cx = 320.0;
   double fx = 577.3;
+  double fy = 579.4;
 
   std::deque<geometry_msgs::PoseStamped> camera_poses;
   std::deque<sensor_msgs::Image> imgs;
@@ -160,39 +161,68 @@ void AngleGrid::insertPanorama(const std::string bagfile)
     }
 
     if (!camera_poses.empty() && !imgs.empty()) {
+      // convert camera pose to 2D pose
+      geometry_msgs::Pose2D pose;
+      pose.x = camera_poses.front().pose.position.x;
+      pose.y = camera_poses.front().pose.position.y;
+      pose.theta = tf::getYaw(camera_poses.front().pose.orientation);
+      geometry_msgs::Pose2DConstPtr pose_ptr(new geometry_msgs::Pose2D(pose));
+
+      // compute offset in pixels between center row of depth image and row in 
+      // plane parallel to the ground (if camera is tilted up, we want to 
+      // extract the row of the depth image that points directly foward -- as 
+      // if the camera was not tilted)
+      double roll, tilt_angle, yaw;
+      tf::Quaternion quat;
+      tf::quaternionMsgToTF(camera_poses.front().pose.orientation, quat);
+      tf::Matrix3x3(quat).getRPY(roll, tilt_angle, yaw);
+      int tilt_offset = -fy * tan(tilt_angle);
+
+      // convert depth image to laserscan
       sensor_msgs::LaserScan scan;
-      scan.angle_min = -atan2(w-1-Cx, fx);
+      scan.angle_min = -atan2((double)img_w-1.0-Cx, fx);
       scan.angle_max = atan2(Cx, fx);
-      scan.angle_increment = (scan.angle_max - scan.angle_min) / (w-1);
+      scan.angle_increment =(scan.angle_max-scan.angle_min)/((double)img_w-1.0);
       scan.time_increment = 0.0;
       scan.scan_time = 1.0/30.0; // 30Hz
       scan.range_min = 0.45; // Xtion min range
       scan.range_max = 4.0; // Xtion max range
       scan.header = imgs[0].header;
       scan.header.frame_id = "world";
-      scan.ranges.reserve(w);
+      scan.ranges.reserve(img_w);
 
       uint16_t* depth_row = reinterpret_cast<uint16_t*>(imgs[0].data.data());
-      depth_row += (int)((h/2) * w);
-      for (int u = 0; u < w; ++u) {
+      int row_offset = img_h/2 + tilt_offset;
+      if (row_offset < 0 || row_offset >= img_w) {
+        ROS_FATAL("Row %d not in depth image with %d rows", row_offset, img_h);
+        exit(EXIT_FAILURE);
+      }
+      depth_row += (row_offset*img_w);
+      for (int u = 0; u < img_w; ++u) {
         double z = depth_row[u] / 1000.0;
         double x = (u - Cx) * z / fx;
         double r = sqrt(pow(x, 2.0) + pow(z, 2.0));
         scan.ranges.push_back(r);
       }
-
-      // convert camera pose to 2D pose
-      geometry_msgs::Pose2D pose;
-      pose.x = camera_poses.front().pose.position.x;
-      pose.y = camera_poses.front().pose.position.y;
-      pose.theta = tf::getYaw(camera_poses.front().pose.orientation);
-
       sensor_msgs::LaserScanConstPtr scan_ptr(new sensor_msgs::LaserScan(scan));
-      geometry_msgs::Pose2DConstPtr pose_ptr(new geometry_msgs::Pose2D(pose));
+
+      // update map with laserscan
       insertScan(scan_ptr, pose_ptr);
 
       camera_poses.pop_front();
       imgs.pop_front();
+    }
+  }
+
+  // ensure robot origin is marked as free
+  Point panorama_origin(pan_trans->transform.translation.x, 
+      pan_trans->transform.translation.y);
+  int origin_cell = positionToIndex(panorama_origin);
+  auto robot_cells = neighborIndices(origin_cell, 0.1);
+  robot_cells.push_back(origin_cell);
+  for (auto cell : robot_cells) {
+    for (int l = 0; l < layers; ++l) {
+      data[cell + l*w*h] -= 5.0; // sufficiently high log-odds free value
     }
   }
 
