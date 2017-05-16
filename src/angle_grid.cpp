@@ -1,5 +1,4 @@
 #include "grid_mapping/angle_grid.h"
-#include "grid_mapping/common.h"
 #include <ros/ros.h>
 #include <rosbag/bag.h>
 #include <rosbag/view.h>

@@ -35,11 +35,10 @@ set(SOURCE_FILES
   src/grid_base.cpp
   src/occ_grid.cpp
   src/point.cpp
-  src/common.cpp
 )
 
 add_library(${PROJECT_NAME} ${SOURCE_FILES})
 target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES})
 
-add_executable(grid_test src/main.cpp)
+add_executable(grid_test src/main.cpp src/common.cpp)
 target_link_libraries(grid_test ${PROJECT_NAME} ${catkin_LIBRARIES} ${OpenCV_LIBS})
