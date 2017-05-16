@@ -150,7 +150,7 @@ int_vec GridBase::neighborIndices(const int cell, const int rad) const
 
 int_vec GridBase::neighborIndices(const int cell, const double rad) const
 {
-  return neighborIndices(cell, roundToMapRes(rad));
+  return neighborIndices(cell, (int)(roundToMapRes(rad)/resolution));
 }
 
 void GridBase::bbxIntersection(const Point p1, Point& p2) const
