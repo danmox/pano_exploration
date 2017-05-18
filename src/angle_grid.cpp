@@ -1,10 +1,12 @@
 #include "grid_mapping/angle_grid.h"
+
 #include <ros/ros.h>
 #include <rosbag/bag.h>
 #include <rosbag/view.h>
 #include <geometry_msgs/Pose2D.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/TransformStamped.h>
+#include <sensor_msgs/CameraInfo.h>
 #include <sensor_msgs/LaserScan.h>
 #include <sensor_msgs/Image.h>
 #include <tf/transform_datatypes.h>
@@ -130,34 +132,32 @@ void AngleGrid::insertScan(const sensor_msgs::LaserScanConstPtr& scan,
 // update the map from a saved panorama rosbag
 void AngleGrid::insertPanorama(const std::string bagfile)
 {
-  rosbag::Bag pan_bag;
-  pan_bag.open(bagfile, rosbag::bagmode::Read);
-  
-  // extract panorama_pose and convert to 2D pose
-  geometry_msgs::TransformStampedConstPtr pan_trans;
-  int idx = 0;
-  for (auto m : rosbag::View(pan_bag)) {
-    pan_trans = m.instantiate<geometry_msgs::TransformStamped>();
-    if (pan_trans)
-      break;
-  }
+  rosbag::Bag bag;
+  bag.open(bagfile, rosbag::bagmode::Read);
 
-  // default camera intrinsic parameters for the xtion
-  int img_w = 640;
-  int img_h = 480;
-  double Cx = 320.0;
-  double fx = 577.3;
-  double fy = 579.4;
+  // extract depth camera info
+  sensor_msgs::CameraInfo camera_info;
+  for (auto m : rosbag::View(bag, rosbag::TopicQuery("depth_camera_info"))) {
+    auto msg = m.instantiate<sensor_msgs::CameraInfo>();
+    if (msg) {
+      camera_info = *msg;
+      break;
+    }
+  }
+  int img_w = camera_info.width;
+  int img_h = camera_info.height;
+  double Cx = camera_info.K[2];
+  double fx = camera_info.K[0];
+  double fy = camera_info.K[4];
 
   std::deque<geometry_msgs::PoseStamped> camera_poses;
   std::deque<sensor_msgs::Image> imgs;
-  for (auto m : rosbag::View(pan_bag)) {
+  std::vector<std::string> topics = {"camera_pose", "depth"};
+  for (auto m : rosbag::View(bag, rosbag::TopicQuery(topics))) {
     if (m.getTopic().compare("camera_pose") == 0)
-      camera_poses.push_back(*(m.instantiate<geometry_msgs::PoseStamped>()));
-    else if (m.getTopic().compare("depth") == 0) {
-      sensor_msgs::ImageConstPtr img = m.instantiate<sensor_msgs::Image>();
-      imgs.push_back(*img);
-    }
+      camera_poses.push_back(*m.instantiate<geometry_msgs::PoseStamped>());
+    else if (m.getTopic().compare("depth") == 0)
+      imgs.push_back(*m.instantiate<sensor_msgs::Image>());
 
     if (!camera_poses.empty() && !imgs.empty()) {
       // convert camera pose to 2D pose
@@ -177,7 +177,6 @@ void AngleGrid::insertPanorama(const std::string bagfile)
       tf::Matrix3x3(quat).getRPY(roll, tilt_angle, yaw);
       int tilt_offset = -fy * tan(tilt_angle);
 
-      // convert depth image to laserscan
       sensor_msgs::LaserScan scan;
       scan.angle_min = -atan2((double)img_w-1.0-Cx, fx);
       scan.angle_max = atan2(Cx, fx);
@@ -197,7 +196,7 @@ void AngleGrid::insertPanorama(const std::string bagfile)
         exit(EXIT_FAILURE);
       }
       depth_row += (row_offset*img_w);
-      for (int u = 0; u < img_w; ++u) {
+      for (int u = img_w-1; u >= 0; --u) { // laserscans are logged CCW
         double z = depth_row[u] / 1000.0;
         double x = (u - Cx) * z / fx;
         double r = sqrt(pow(x, 2.0) + pow(z, 2.0));
@@ -213,19 +212,28 @@ void AngleGrid::insertPanorama(const std::string bagfile)
     }
   }
 
-  // ensure robot origin is marked as free
-  Point panorama_origin(pan_trans->transform.translation.x, 
-      pan_trans->transform.translation.y);
-  int origin_cell = positionToIndex(panorama_origin);
-  auto robot_cells = neighborIndices(origin_cell, 0.1);
-  robot_cells.push_back(origin_cell);
-  for (auto cell : robot_cells) {
-    for (int l = 0; l < layers; ++l) {
-      data[cell + l*w*h] -= 5.0; // sufficiently high log-odds free value
+  // extract panorama pose
+  geometry_msgs::TransformStamped pan_pose;
+  for (auto m : rosbag::View(bag, rosbag::TopicQuery("panorama_pose"))) {
+    auto msg = m.instantiate<geometry_msgs::TransformStamped>();
+    if (msg) {
+      pan_pose = *msg;
+      break;
     }
   }
 
-  pan_bag.close();
+  // ensure robot origin is marked as free (because of the slight offset between
+  // the pose of the robot and pose of the camera the exact position of the
+  // robot sometimes is not marked as free in the resulting occupancy grid)
+  Point po(pan_pose.transform.translation.x, pan_pose.transform.translation.y);
+  int origin_cell = positionToIndex(po);
+  auto robot_cells = neighborIndices(origin_cell, 0.1);
+  robot_cells.push_back(origin_cell);
+  for (auto cell : robot_cells)
+    for (int l = 0; l < layers; ++l)
+      data[cell + l*w*h] -= 5.0; // sufficiently high log-odds free value
+
+  bag.close();
 }
 
 } // namespace grid_mapping
