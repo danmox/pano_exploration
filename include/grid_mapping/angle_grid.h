@@ -2,6 +2,8 @@
 #define GRID_MAPPING_ANGLE_GRID_H
 
 #include "grid_mapping/occ_grid.h"
+
+#include <grid_mapping/OccupancyGrid.h>
 #include <nav_msgs/OccupancyGrid.h>
 #include <geometry_msgs/Pose2D.h>
 #include <sensor_msgs/LaserScan.h>
@@ -27,6 +29,8 @@ class AngleGrid : public OccGrid
     void insertScan(const sensor_msgs::LaserScanConstPtr&,
         const geometry_msgs::Pose2DConstPtr&);
     void insertPanorama(const std::string);
+
+    OccupancyGridPtr createROSMsg();
 };
 
 } // namespace grid_mapping

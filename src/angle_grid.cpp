@@ -3,11 +3,9 @@
 #include <ros/ros.h>
 #include <rosbag/bag.h>
 #include <rosbag/view.h>
-#include <geometry_msgs/Pose2D.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/TransformStamped.h>
 #include <sensor_msgs/CameraInfo.h>
-#include <sensor_msgs/LaserScan.h>
 #include <sensor_msgs/Image.h>
 #include <tf/transform_datatypes.h>
 #include <unordered_set>
@@ -23,6 +21,8 @@ AngleGrid::AngleGrid(Point origin_, double res, int w_, int h_, int l_) :
   OccGrid(origin_, res, w_, h_, false),
   layers(l_)
 {
+  ros::Time::init(); // for timestamping ros msgs in createROSMsg()
+
   // initialize bins of angle grid
   double step = 2.0*M_PI/double(layers);
   for (int i = 0; i < layers; ++i)
@@ -34,6 +34,8 @@ AngleGrid::AngleGrid(Point origin_, double res, int w_, int h_, int l_) :
 AngleGrid::AngleGrid(const nav_msgs::OccupancyGrid::ConstPtr& msg) :
   OccGrid(msg)
 {
+  ros::Time::init(); // for timestamping ros msgs in createROSMsg()
+
   layers = msg->data.size() / (w*h);
   double step = 2.0*M_PI/double(layers);
   for (int i = 0; i < layers; ++i)
@@ -234,6 +236,28 @@ void AngleGrid::insertPanorama(const std::string bagfile)
       data[cell + l*w*h] -= 5.0; // sufficiently high log-odds free value
 
   bag.close();
+}
+
+OccupancyGridPtr AngleGrid::createROSMsg()
+{
+  static int seq = 0;
+
+  OccupancyGridPtr grid(new OccupancyGrid);
+
+  grid->header.seq = seq++;
+  grid->header.stamp = ros::Time::now();
+  grid->resolution = resolution;
+  grid->width = w;
+  grid->height = h;
+  grid->layers = layers;
+  grid->bins = bins;
+
+  grid->origin.x = origin.x;
+  grid->origin.y = origin.y;
+
+  grid->data = data;
+
+  return grid;
 }
 
 } // namespace grid_mapping
