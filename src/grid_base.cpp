@@ -139,7 +139,7 @@ int_vec GridBase::neighborIndices(const int cell, const int rad) const
   int_vec neighbors;
   for (int r = r_min; r <= r_max; ++r) {
     for (int c = c_min; c <= c_max; ++c) {
-      int index = cell + c + r*w;
+      int index = c + r*w;
       if (index != cell)
         neighbors.push_back(index);
     }
