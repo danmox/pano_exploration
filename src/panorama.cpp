@@ -190,6 +190,7 @@ void Panorama::captureLoop()
   // capture panorama frames
   ros::Rate loop_rate(30);
   int frame = 1;
+  bool saved_camera_info = false;
   while (frame <= number_of_frames) {
 
     // check if action has been cancelled
@@ -211,6 +212,15 @@ void Panorama::captureLoop()
       std_msgs::Header hd;
       {
         lock_guard<mutex> lock(data_mutex);
+        // camera info doesn't change and need only be saved once
+        if (!saved_camera_info) {
+          bag.write("color_camera_info", rgbd_ptr->color_info->header.stamp,
+              rgbd_ptr->color_info);
+          bag.write("depth_camera_info", rgbd_ptr->depth_info->header.stamp,
+              rgbd_ptr->depth_info);
+          saved_camera_info = true;
+        }
+
         // save image data to bag
         bag.write("color", rgbd_ptr->color->header.stamp, rgbd_ptr->color);
         bag.write("depth", rgbd_ptr->depth->header.stamp, rgbd_ptr->depth);
