@@ -3,7 +3,7 @@
   <arg name="debug"               default="false"/>
   <arg name="spin_speed"          default="0.25"/>
   <arg name="number_of_frames"    default="72"/>
-  <arg name="save_directory"      default="$(env ROS_HOME)/panoramas"/>
+  <arg name="save_directory"      default="$(env HOME)/.ros/panoramas"/>
   <arg name="image_registration"  default="true"/>
   <arg name="world_frame"/>
   <arg name="robot_frame"/>
