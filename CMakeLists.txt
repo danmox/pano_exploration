@@ -6,6 +6,7 @@ add_definitions(-std=c++11)
 
 find_package(catkin REQUIRED COMPONENTS
   roscpp
+  rosbag
 )
 
 find_package(OpenCV REQUIRED)
