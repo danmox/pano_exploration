@@ -9,5 +9,6 @@
   <buildtool_depend>catkin</buildtool_depend>
   <depend>roscpp</depend>
   <depend>rosbag</depend>
+  <depend>grid_mapping</depend>
 
 </package>
