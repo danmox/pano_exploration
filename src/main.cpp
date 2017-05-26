@@ -11,8 +11,8 @@ int main(int argc, char** argv)
   cv::Mat img;
   rosbag::Bag bag;
   bag.open("data/pan_grid.bag", rosbag::bagmode::Read);
+  grid_mapping::OccupancyGridConstPtr grid;
   for (auto m : rosbag::View(bag)) {
-    grid_mapping::OccupancyGridConstPtr grid;
     grid = m.instantiate<grid_mapping::OccupancyGrid>();
     if (grid) {
       occupancyGridToMat(grid, img);
@@ -21,11 +21,11 @@ int main(int argc, char** argv)
   }
 
   // show image
-  cv::Mat skeleton;
+  cv::Mat skeleton, color_img;
   computeSkeleton(img, skeleton);
-  img.setTo(50, skeleton);
-  displayImageComplement(img, "Map");
-  displayImage(skeleton, "Skeleton");
+  cv::cvtColor(255 - img*255.0/100.0, color_img, CV_GRAY2RGB);
+  color_img.setTo(cv::Scalar(255, 0, 0), skeleton);
+  displayRawImage(color_img, "raw image");
 
   return 0;
 }

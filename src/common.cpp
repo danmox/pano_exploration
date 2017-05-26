@@ -23,6 +23,13 @@ void displayImage(const cv::Mat& img, const std::string name)
   cv::waitKey(0);
 }
 
+void displayRawImage(const cv::Mat& img, const std::string name)
+{
+  cv::namedWindow(name, cv::WINDOW_NORMAL);
+  cv::imshow(name, img);
+  cv::waitKey(0);
+}
+
 cv::Mat loadMat(std::string file)
 {
   std::ifstream f(file, std::ios::in | std::ios::binary | std::ios::ate);
