@@ -22,15 +22,6 @@ find_package(catkin REQUIRED COMPONENTS
   openni2_xtion
 )
 
-# find openni2 include and library manually
-find_path(OPENNI2_INCLUDE_DIR OpenNI.h
-  HINTS "$ENV{OPENNI2_INCLUDE}" /usr/include/openni2
-)
-find_library(OPENNI2_LIBRARY
-  NAMES OpenNI2
-  HINTS "$ENV{OPENNI2_REDIST}" /usr/lib
-)
-
 add_action_files(
   DIRECTORY
     action
