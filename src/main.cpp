@@ -3,7 +3,7 @@
 
 #include <rosbag/bag.h>
 #include <rosbag/view.h>
-#include <grid_mapping/OccupancyGrid.h>
+#include <grid_mapping/angle_grid.h>
 
 int main(int argc, char** argv)
 {
@@ -19,12 +19,17 @@ int main(int argc, char** argv)
       break;
     }
   }
+  grid_mapping::AngleGrid ang_grid(grid);
 
   // show image
   cv::Mat skeleton, color_img;
   computeSkeleton(img, skeleton);
   cv::cvtColor(255 - img*255.0/100.0, color_img, CV_GRAY2RGB);
   color_img.setTo(cv::Scalar(255, 0, 0), skeleton);
+  int origin_idx = ang_grid.positionToIndex(grid_mapping::Point(0.0,0.0));
+  int x = origin_idx % ang_grid.w;
+  int y = origin_idx / ang_grid.w;
+  color_img.at<cv::Vec3b>(cv::Point(x,y)) = cv::Vec3b(0, 255, 0);
   displayRawImage(color_img, "raw image");
 
   return 0;
