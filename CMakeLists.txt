@@ -23,5 +23,11 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
 )
 
-add_executable(skeleton src/main.cpp src/common.cpp src/thinning.cpp)
+set(PROJECT_SOURCE_FILES
+  src/common.cpp
+  src/thinning.cpp
+  src/partitioning.cpp
+)
+
+add_executable(skeleton src/main.cpp ${PROJECT_SOURCE_FILES})
 target_link_libraries(skeleton ${catkin_LIBRARIES} ${OpenCV_LIBS})

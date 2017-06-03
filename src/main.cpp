@@ -1,5 +1,6 @@
 #include "csqmi_planning/common.h"
 #include "csqmi_planning/thinning.hpp"
+#include "csqmi_planning/partitioning.h"
 
 #include <rosbag/bag.h>
 #include <rosbag/view.h>
@@ -27,9 +28,11 @@ int main(int argc, char** argv)
   cv::cvtColor(255 - img*255.0/100.0, color_img, CV_GRAY2RGB);
   color_img.setTo(cv::Scalar(255, 0, 0), skeleton);
   int origin_idx = ang_grid.positionToIndex(grid_mapping::Point(0.0,0.0));
-  int x = origin_idx % ang_grid.w;
-  int y = origin_idx / ang_grid.w;
-  color_img.at<cv::Vec3b>(cv::Point(x,y)) = cv::Vec3b(0, 255, 0);
+  std::vector<cv::Point> pans;
+  pans.push_back(cv::Point(origin_idx % ang_grid.w, origin_idx / ang_grid.w));
+  color_img.at<cv::Vec3b>(pans[0]) = cv::Vec3b(0, 255, 0);
+  locatePanoramasOnSkeleton(skeleton, pans);
+  color_img.at<cv::Vec3b>(pans[0]) = cv::Vec3b(0, 0, 255);
   displayRawImage(color_img, "raw image");
 
   return 0;
