@@ -21,6 +21,7 @@ class AngleGrid : public OccGrid
 
     AngleGrid(Point, double, int, int, int = 4);
     AngleGrid(const nav_msgs::OccupancyGrid::ConstPtr&);
+    AngleGrid(const OccupancyGrid::ConstPtr&);
 
     virtual void update(const AngleGrid*);
     virtual void update(const Point, const int, const int);

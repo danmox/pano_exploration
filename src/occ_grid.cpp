@@ -21,6 +21,12 @@ OccGrid::OccGrid(const nav_msgs::OccupancyGrid::ConstPtr& msg) :
     data.push_back(cell / 100.0);
 }
 
+OccGrid::OccGrid(const grid_mapping::OccupancyGrid::ConstPtr& msg) :
+  GridBase(msg),
+  data(msg->data)
+{
+}
+
 // update existing map to have new dimensions
 void OccGrid::update(const Point new_origin, const int w_new, const int h_new)
 {

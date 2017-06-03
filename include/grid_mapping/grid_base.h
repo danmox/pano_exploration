@@ -2,6 +2,8 @@
 #define GRID_MAPPING_GRID_BASE_H
 
 #include "grid_mapping/point.h"
+
+#include <grid_mapping/OccupancyGrid.h>
 #include <vector>
 
 namespace grid_mapping {
@@ -15,6 +17,7 @@ class GridBase
     Point origin; // center of bottom-leftmost cell
 
     GridBase(Point, double, int, int);
+    GridBase(const OccupancyGrid::ConstPtr&);
 
     double roundToMapRes(const double) const;
     Point roundToMapRes(const Point) const;

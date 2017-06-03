@@ -2,6 +2,8 @@
 #define GRID_MAPPING_OCC_GRID_H
 
 #include "grid_mapping/grid_base.h"
+
+#include <grid_mapping/OccupancyGrid.h>
 #include <nav_msgs/OccupancyGrid.h>
 #include <geometry_msgs/Pose2D.h>
 #include <sensor_msgs/LaserScan.h>
@@ -20,6 +22,7 @@ class OccGrid : public GridBase
 
     OccGrid(Point, double, int, int, bool = true);
     OccGrid(const nav_msgs::OccupancyGrid::ConstPtr&);
+    OccGrid(const OccupancyGrid::ConstPtr&);
 
     virtual void update(const OccGrid*);
     virtual void update(const Point, const int, const int);

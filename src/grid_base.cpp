@@ -8,6 +8,15 @@ GridBase::GridBase(Point origin_, double res, int w_, int h_) :
 {
 }
 
+GridBase::GridBase(const OccupancyGrid::ConstPtr& msg) :
+  origin(msg->origin.x, msg->origin.y),
+  resolution(msg->resolution),
+  w(msg->width),
+  h(msg->height)
+{
+}
+
+
 double GridBase::roundToMapRes(const double num) const
 {
   return round(num / resolution) * resolution;

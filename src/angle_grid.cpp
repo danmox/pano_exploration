@@ -42,6 +42,13 @@ AngleGrid::AngleGrid(const nav_msgs::OccupancyGrid::ConstPtr& msg) :
     bins.push_back(i*step);
 }
 
+AngleGrid::AngleGrid(const grid_mapping::OccupancyGrid::ConstPtr& msg) :
+  OccGrid(msg),
+  layers(msg->layers),
+  bins(msg->bins)
+{
+}
+
 int AngleGrid::angleIndex(double angle)
 {
   // the angle at which a ray intercepts a cell is the opposite of the angle of
