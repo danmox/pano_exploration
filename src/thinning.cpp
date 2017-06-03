@@ -109,5 +109,5 @@ void computeSkeleton(cv::Mat& img_in, cv::Mat& img_out)
         img.at<unsigned char>(point) = 0;
 
   // store results in output array with pad and threshold removed
-  img_out = cv::Mat(img, cv::Rect(1, 1, img.cols-2, img.rows-2)) * 255;
+  img_out = cv::Mat(img, cv::Rect(1, 1, img.cols-2, img.rows-2));
 }
