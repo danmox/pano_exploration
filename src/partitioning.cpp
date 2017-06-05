@@ -1,8 +1,8 @@
 #include "csqmi_planning/partitioning.h"
 
-void locatePanoramasOnSkeleton(const cv::Mat skel, std::vector<cv::Point>& pans)
+cv_points locatePanoramasOnSkeleton(const cv::Mat skel, cv_points pans)
 {
-  std::vector<cv::Point> skel_points;
+  cv_points skel_points;
   cv::findNonZero(skel, skel_points);
 
   for (cv::Point& pan : pans) {
@@ -26,4 +26,6 @@ void locatePanoramasOnSkeleton(const cv::Mat skel, std::vector<cv::Point>& pans)
     // update panorama pixel location
     pan = nearest_skel_px;
   }
+
+  return pans;
 }

@@ -4,6 +4,8 @@
 #include <opencv2/opencv.hpp>
 #include <vector>
 
-void locatePanoramasOnSkeleton(const cv::Mat, std::vector<cv::Point>&);
+typedef std::vector<cv::Point> cv_points;
+
+cv_points locatePanoramasOnSkeleton(const cv::Mat, const cv_points);
 
 #endif

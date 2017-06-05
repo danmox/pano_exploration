@@ -31,7 +31,7 @@ int main(int argc, char** argv)
   std::vector<cv::Point> pans;
   pans.push_back(cv::Point(origin_idx % ang_grid.w, origin_idx / ang_grid.w));
   color_img.at<cv::Vec3b>(pans[0]) = cv::Vec3b(0, 255, 0);
-  locatePanoramasOnSkeleton(skeleton, pans);
+  pans = locatePanoramasOnSkeleton(skeleton, pans);
   color_img.at<cv::Vec3b>(pans[0]) = cv::Vec3b(0, 0, 255);
   displayRawImage(color_img, "raw image");
 
