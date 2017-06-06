@@ -251,6 +251,10 @@ OccupancyGridPtr AngleGrid::createROSMsg()
 
   OccupancyGridPtr grid(new OccupancyGrid);
 
+  // make sure ros::Time is running
+  if (!ros::Time::isValid())
+    ros::Time::init();
+
   grid->header.seq = seq++;
   grid->header.stamp = ros::Time::now();
   grid->resolution = resolution;
