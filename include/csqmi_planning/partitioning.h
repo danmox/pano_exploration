@@ -6,6 +6,7 @@
 
 typedef std::vector<cv::Point> cv_points;
 
-cv_points locatePanoramasOnSkeleton(const cv::Mat, const cv_points);
+cv_points locatePanoramasOnSkeleton(const cv::Mat, cv_points);
+std::vector<cv_points> partitionSkeleton(const cv::Mat, const cv_points);
 
 #endif

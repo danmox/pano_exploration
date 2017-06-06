@@ -1,19 +1,25 @@
 #include "csqmi_planning/partitioning.h"
+#include "csqmi_planning/common.h"
 
-cv_points locatePanoramasOnSkeleton(const cv::Mat skel, cv_points pans)
+#include <stack>
+
+using namespace std;
+using namespace cv;
+
+vector<Point> locatePanoramasOnSkeleton(const Mat skel, vector<Point> pans)
 {
-  cv_points skel_points;
-  cv::findNonZero(skel, skel_points);
+  vector<Point> skel_points;
+  findNonZero(skel, skel_points);
 
-  for (cv::Point& pan : pans) {
+  for (Point& pan : pans) {
     // check if the panorama is already located on the skeleton
     if (skel.at<unsigned char>(pan) == 1)
       continue;
 
     // find nearest skeleton cell
     double min_dist = 1e15;
-    cv::Point nearest_skel_px = pan;
-    for (cv::Point skel_px : skel_points) {
+    Point nearest_skel_px = pan;
+    for (Point skel_px : skel_points) {
       double dx = pan.x - skel_px.x;
       double dy = pan.y - skel_px.y;
       double dist = sqrt(pow(dx, 2.0) + pow(dy, 2.0));
@@ -28,4 +34,26 @@ cv_points locatePanoramasOnSkeleton(const cv::Mat skel, cv_points pans)
   }
 
   return pans;
+}
+
+vector<vector<Point>> partitionSkeleton(const Mat skel_in,
+    const vector<Point> pans)
+{
+  // remove panorama pixels from skeleton
+  vector<Point> pan_pixels = locatePanoramasOnSkeleton(skel_in, pans);
+  Mat skel = skel_in.clone();
+  for (Point pan : pan_pixels)
+    skel.at<unsigned char>(pan) = 0;
+
+  vector<vector<Point>> contours;
+  vector<Vec4i> hierarchy;
+  findContours(skel, contours, hierarchy, RETR_LIST, CHAIN_APPROX_NONE);
+  Mat dst = Mat::zeros(skel.rows, skel.cols, CV_8UC3);
+  for (int idx = 0 ; idx >= 0; idx = hierarchy[idx][0]) {
+      Scalar color(rand()&255, rand()&255, rand()&255);
+      drawContours(dst, contours, idx, color, FILLED, 8, hierarchy);
+  }
+  displayRawImage(dst, "components");
+
+  return contours;
 }

@@ -34,6 +34,7 @@ int main(int argc, char** argv)
   pans = locatePanoramasOnSkeleton(skeleton, pans);
   color_img.at<cv::Vec3b>(pans[0]) = cv::Vec3b(0, 0, 255);
   displayRawImage(color_img, "raw image");
+  std::vector<cv_points> regions = partitionSkeleton(skeleton, pans);
 
   return 0;
 }
