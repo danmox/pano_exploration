@@ -97,8 +97,9 @@ bool GridBase::indexToPositionChecked(const int cell, Point& p) const
 
 int GridBase::positionToIndex(const double x, const double y) const
 {
-  return round((x-origin.x)/resolution) + 
-    round((y-origin.y)/resolution)*w;
+  int col = (x - origin.x + resolution/2.0) / resolution;
+  int row = (y - origin.y + resolution/2.0) / resolution;
+  return w*row + col;
 }
 
 int GridBase::positionToIndex(const Point p) const
@@ -119,6 +120,17 @@ bool GridBase::positionToIndexChecked(const double x, const double y,
 bool GridBase::positionToIndexChecked(const Point p, int& index) const
 {
   return positionToIndexChecked(p.x, p.y, index);
+}
+
+void GridBase::positionToSubscripts(const Point p, int& row, int& col) const
+{
+  row = (p.y - origin.y + resolution/2.0) / resolution;
+  col = (p.x - origin.x + resolution/2.0) / resolution;
+}
+
+int GridBase::subscriptsToIndex(const int row, const int col) const
+{
+  return w*row + col;
 }
 
 // neighbor cell methods

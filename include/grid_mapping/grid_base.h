@@ -29,7 +29,10 @@ class GridBase
     Point bbxMax() const; // takes into account resolution
     Point topCorner() const; // center of furthest cell from origin
 
-    // index conversion methods for 2D grid stored as 1D array
+    // index conversion methods for 2D grid stored as 1D array:
+    // position - {x,y} pose in meters
+    // index - 1D index in data vector
+    // subscritps - 2D indices as if data vector were matrix
     void indexToPosition(const int, double&, double&) const;
     Point indexToPosition(const int) const;
     bool indexToPositionChecked(const int, double&, double&) const;
@@ -38,6 +41,8 @@ class GridBase
     int positionToIndex(const Point) const;
     bool positionToIndexChecked(const double, const double, int&) const;
     bool positionToIndexChecked(const Point, int&) const;
+    void positionToSubscripts(const Point, int&, int&) const;
+    int subscriptsToIndex(const int, const int) const;
 
     // neighbor cell methods
     std::vector<int> neighborIndices(const int cell, const int rad=1) const;
