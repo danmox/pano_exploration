@@ -48,12 +48,14 @@ vector<vector<Point>> partitionSkeleton(const Mat skel_in,
   vector<vector<Point>> contours;
   vector<Vec4i> hierarchy;
   findContours(skel, contours, hierarchy, RETR_LIST, CHAIN_APPROX_NONE);
+  /*
   Mat dst = Mat::zeros(skel.rows, skel.cols, CV_8UC3);
   for (int idx = 0 ; idx >= 0; idx = hierarchy[idx][0]) {
       Scalar color(rand()&255, rand()&255, rand()&255);
       drawContours(dst, contours, idx, color, FILLED, 8, hierarchy);
   }
   displayRawImage(dst, "components");
+  */
 
   return contours;
 }
