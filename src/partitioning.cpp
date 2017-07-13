@@ -45,9 +45,11 @@ vector<vector<Point>> partitionSkeleton(const Mat skel_in,
   for (Point pan : pan_pixels)
     skel.at<unsigned char>(pan) = 0;
 
+  // find connected regions
   vector<vector<Point>> contours;
   vector<Vec4i> hierarchy;
   findContours(skel, contours, hierarchy, RETR_LIST, CHAIN_APPROX_NONE);
+
   /*
   Mat dst = Mat::zeros(skel.rows, skel.cols, CV_8UC3);
   for (int idx = 0 ; idx >= 0; idx = hierarchy[idx][0]) {
@@ -58,4 +60,22 @@ vector<vector<Point>> partitionSkeleton(const Mat skel_in,
   */
 
   return contours;
+}
+
+vector<vector<int>> matPixelsToGridIndices(const vector<vector<Point>>& regions,
+    const grid_mapping::AngleGrid& ang_grid)
+{
+  vector<vector<int>> region_grid_indices;
+  for (auto& region : regions) {
+    vector<int> indices;
+    indices.reserve(region.size());
+    for (auto px : region) {
+      // reflect y points: grid origin is bottom left, mat origin is top left
+      int idx = ang_grid.subscriptsToIndex(ang_grid.h - 1 - px.y, px.x);
+      indices.push_back(idx);
+    }
+    region_grid_indices.push_back(indices);
+  }
+
+  return region_grid_indices;
 }
