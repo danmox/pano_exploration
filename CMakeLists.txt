@@ -27,6 +27,7 @@ set(PROJECT_SOURCE_FILES
   src/common.cpp
   src/thinning.cpp
   src/partitioning.cpp
+  src/csqmi.cpp
 )
 
 add_executable(skeleton src/main.cpp ${PROJECT_SOURCE_FILES})

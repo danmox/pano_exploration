@@ -1,23 +1,19 @@
 #include <csqmi_planning/csqmi.h>
-#include <grid_mapping/Point.h>
+#include <ros/ros.h>
 
-using namespace std;
-using grid_mapping::Point;
-using geometry_msgs::Pose2D;
-
-CSQMI::CSQMI(int res_, double max_, double min_, double stdev_) :
-  sensor(res_, max_, min_), 
-  N(sqrt(2.0)*stdev_), // according to csqmi def, the variance = 2*std^2
+CSQMI::CSQMI(const DepthCamera depth_camera, const double stdev_) :
+  sensor(depth_camera),
+  N(sqrt(2.0)*stdev_),
   independence_threshold(0.1)
 {
 }
 
 // calculate the probability of the beam reaching a cell in c
-vector<double> computePEs(const vector<double> &o)
+std::vector<double> computePEs(const std::vector<double> &o)
 {
   size_t pew_size = o.size() + 1;
 
-  vector<double> pe(pew_size, 0.0); 
+  std::vector<double> pe(pew_size, 0.0); 
   double product = 1.0;
   pe[1] = o[0];
   for (int j = 2; j < pew_size; ++j) {
@@ -29,11 +25,12 @@ vector<double> computePEs(const vector<double> &o)
   return pe;
 }
 
-vector<double> computeWeights(const vector<double> &o, const vector<double> &pe)
+std::vector<double> computeWeights(const std::vector<double> &o, 
+    const std::vector<double> &pe)
 {
   size_t pew_size = o.size()+1;
 
-  vector<double> w(pew_size, 0.0); 
+  std::vector<double> w(pew_size, 0.0); 
   double product = 1;
   w[0] = pow(pe[0], 2);
   w.back() = pow(pe.back(), 2);
@@ -46,21 +43,21 @@ vector<double> computeWeights(const vector<double> &o, const vector<double> &pe)
 }
 
 // determine if beam can reasonably be considered independent
-bool CSQMI::isIndependent(const vector<double> &pe, const vector<int>& cells,
-    hit_map& any_hit)
+bool CSQMI::isIndependent(const std::vector<double> &pe, 
+    const std::vector<int>& cells, hit_map& any_hit)
 {
-  unordered_map<int, double>::iterator it, end = any_hit.end();
+  std::unordered_map<int, double>::iterator it, end = any_hit.end();
   for (int i = 0; i < cells.size(); ++i)
     if ((it = any_hit.find(cells[i])) != end)
-      if (min(pe[i], it->second) > independence_threshold)
+      if (std::min(pe[i], it->second) > independence_threshold)
         return false;
   return true;
 }
 
-void CSQMI::updateAnyHit(const vector<double> &pe, const vector<int>& cells, 
-    hit_map& any_hit)
+void CSQMI::updateAnyHit(const std::vector<double> &pe, 
+    const std::vector<int>& cells, hit_map& any_hit)
 {
-  unordered_map<int, double>::iterator it;
+  std::unordered_map<int, double>::iterator it;
   for (int i = 0; i < cells.size(); ++i) {
     it = any_hit.find(cells[i]);
     if (it != any_hit.end())
@@ -71,11 +68,11 @@ void CSQMI::updateAnyHit(const vector<double> &pe, const vector<int>& cells,
 }
 
 // CSQMI algorithm for a single beam
-double CSQMI::beam_csqmi(const vector<double> &o, const vector<int> &cells,
-    hit_map& any_hit)
+double CSQMI::beam_csqmi(const std::vector<double> &o, 
+    const std::vector<int> &cells, hit_map& any_hit)
 {
   // calculate probability values p(e_i) 
-  vector<double> pe = computePEs(o);
+  std::vector<double> pe = computePEs(o);
 
   // determine if the beam is reasonably independent
   if (!isIndependent(pe, cells, any_hit))
@@ -83,7 +80,7 @@ double CSQMI::beam_csqmi(const vector<double> &o, const vector<int> &cells,
   updateAnyHit(pe, cells, any_hit);
 
   // calculate weights w_l
-  vector<double> w = computeWeights(o, pe);
+  std::vector<double> w = computeWeights(o, pe);
 
   // term 1
   double sum1 = 0.0;
@@ -131,25 +128,27 @@ double CSQMI::beam_csqmi(const vector<double> &o, const vector<int> &cells,
   return mi;
 }
 
-double CSQMI::csqmi(const AngleGrid& grid, const Point& ray_start)
+double CSQMI::csqmi(const grid_mapping::AngleGrid& grid, 
+    const grid_mapping::Point& ray_start)
 {
   double mi = 0.0;
 
   // initialize hit_map and reserve enough space for all beams
   hit_map any_hit;
-  any_hit.reserve(M_PI*pow(sensor.max_range, 2)/grid.map_res());
+  any_hit.reserve(M_PI*pow(sensor.max_range, 2)/grid.resolution);
 
   // compute CSQMI for each beam
   double angle_increment = (1.0 / (double)(sensor.resolution)) * 2.0 * M_PI;
-  int layer = grid.layer_size();
+  int layer = grid.w*grid.h;
   for (int index = 0; index < sensor.resolution; ++index) {
 
     // determine ray endpoints
     double angle = ((double)(index)) * angle_increment;
-    Point ray_end = ray_start + sensor.max_range*Point(cos(angle), sin(angle));
+    grid_mapping::Point ray_end = ray_start + 
+      sensor.max_range*grid_mapping::Point(cos(angle), sin(angle));
 
     // find cells along the beam
-    vector<int> cells = grid.rayCast(ray_start, ray_end);
+    std::vector<int> cells = grid.rayCast(ray_start, ray_end);
     int c_size = cells.size();
     if (c_size == 0) {
       ROS_FATAL("CSQMI::csqmi(...): rayCast failed, cells.size() = 0");
@@ -157,13 +156,13 @@ double CSQMI::csqmi(const AngleGrid& grid, const Point& ray_start)
     }
 
     // determine true beam length
-    Point dP = ray_end - ray_start;
-    int true_beam_length = round(dP.abs().max() / grid.map_res());
+    grid_mapping::Point dP = ray_end - ray_start;
+    int true_beam_length = round(dP.abs().max() / grid.resolution);
 
     // determine cell values along beam
-    vector<double> o;
+    std::vector<double> o;
     o.reserve(true_beam_length);
-    int angle_index = grid.viewAngleIndex(angle);
+    int angle_index = grid.angleIndex(angle);
     for (int c : cells)
       o.push_back(grid.cellProb(c + angle_index*layer));
 
@@ -176,6 +175,13 @@ double CSQMI::csqmi(const AngleGrid& grid, const Point& ray_start)
   }
 }
 
-vector<double> CSQMI::csqmi(const AngleGrid& grid, const vector<cv::Point>& points)
+std::vector<double> CSQMI::csqmi(const grid_mapping::AngleGrid& grid, 
+    const std::vector<cv::Point>& pixels)
 {
+  std::vector<double> mi;
+  mi.reserve(pixels.size());
+  for (auto px : pixels)
+    mi.push_back(csqmi(grid, grid.subscriptsToPosition(px.y, px.x)));
+
+  return mi;
 }

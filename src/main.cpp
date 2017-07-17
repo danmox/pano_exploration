@@ -1,10 +1,13 @@
 #include "csqmi_planning/common.h"
 #include "csqmi_planning/thinning.hpp"
 #include "csqmi_planning/partitioning.h"
+#include "csqmi_planning/csqmi.h"
 
 #include <rosbag/bag.h>
 #include <rosbag/view.h>
 #include <grid_mapping/angle_grid.h>
+
+#include <algorithm>
 
 using namespace std;
 using namespace cv;
@@ -25,7 +28,7 @@ int main(int argc, char** argv)
   }
   grid_mapping::AngleGrid ang_grid(grid);
 
-  // show image
+  // compute skeleton and convert to image
   Mat skeleton, color_img;
   computeSkeleton(img, skeleton);
   cvtColor(255 - img*255.0/100.0, color_img, CV_GRAY2RGB);
@@ -51,9 +54,14 @@ int main(int argc, char** argv)
   for (auto& idx_vec : region_idcs)
     for (auto idx : idx_vec)
       ang_grid.data[idx] = 10;
+
   Mat grid_img;
   occupancyGridToMat(ang_grid.createROSMsg(), grid_img);
   displayImageComplement(grid_img, "angle_grid");
+
+  CSQMI objective(DepthCamera(180, 7.0, 0.45), 0.03);
+  vector<double> mi = objective.csqmi(ang_grid, regions[0]);
+  cout << "max = " << *max_element(mi.begin(), mi.end()) << endl;
 
   return 0;
 }

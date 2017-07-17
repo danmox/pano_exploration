@@ -1,8 +1,8 @@
 #ifndef CSQMI_PLANNING_CSQMI_H_
 #define CSQMI_PLANNING_CSQMI_H_
 
-#include <grid_mapping/AngleGrid.h>
-#include <geometry_msgs/Pose2D.h>
+#include <grid_mapping/angle_grid.h>
+#include <opencv2/core/types.hpp>
 #include <unordered_map>
 #include <vector>
 #include <cmath>
@@ -60,11 +60,13 @@ class CSQMI
         hit_map&);
 
   public:
-    CSQMI(int, double, double, double);
+    CSQMI(const DepthCamera, const double);
 
     double beam_csqmi(const std::vector<double>&, const std::vector<int>&,
         hit_map&);
-    double csqmi(const AngleOccupancyGrid&, const geometry_msgs::Pose2D&);
+    double csqmi(const grid_mapping::AngleGrid&, const grid_mapping::Point&);
+    std::vector<double> csqmi(const grid_mapping::AngleGrid&, 
+        const std::vector<cv::Point>&);
 };
 
 #endif
