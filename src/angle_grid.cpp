@@ -49,7 +49,7 @@ AngleGrid::AngleGrid(const grid_mapping::OccupancyGrid::ConstPtr& msg) :
 {
 }
 
-int AngleGrid::angleIndex(double angle)
+int AngleGrid::angleIndex(double angle) const
 {
   // the angle at which a ray intercepts a cell is the opposite of the angle of
   // the ray, constrained to (-pi pi]
