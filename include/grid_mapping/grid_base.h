@@ -43,6 +43,7 @@ class GridBase
     bool positionToIndexChecked(const Point, int&) const;
     void positionToSubscripts(const Point, int&, int&) const;
     int subscriptsToIndex(const int, const int) const;
+    Point subscriptsToPosition(const int, const int) const;
 
     // neighbor cell methods
     std::vector<int> neighborIndices(const int cell, const int rad=1) const;

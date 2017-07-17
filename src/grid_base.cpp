@@ -133,6 +133,11 @@ int GridBase::subscriptsToIndex(const int row, const int col) const
   return w*row + col;
 }
 
+Point GridBase::subscriptsToPosition(const int row, const int col) const
+{
+  return Point(col*resolution - origin.x, row*resolution - origin.y);
+}
+
 // neighbor cell methods
 typedef std::vector<int> int_vec;
 
