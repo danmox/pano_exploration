@@ -27,6 +27,11 @@ OccGrid::OccGrid(const grid_mapping::OccupancyGrid::ConstPtr& msg) :
 {
 }
 
+double OccGrid::cellProb(const int idx) const
+{
+  return 1.0-(1.0/(1.0 + exp(data[idx])));
+}
+
 // update existing map to have new dimensions
 void OccGrid::update(const Point new_origin, const int w_new, const int h_new)
 {

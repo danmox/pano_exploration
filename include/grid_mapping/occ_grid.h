@@ -20,6 +20,8 @@ class OccGrid : public GridBase
   public:
     std::vector<double> data;
 
+    double cellProb(const int) const;
+
     OccGrid(Point, double, int, int, bool = true);
     OccGrid(const nav_msgs::OccupancyGrid::ConstPtr&);
     OccGrid(const OccupancyGrid::ConstPtr&);
