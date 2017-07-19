@@ -70,8 +70,7 @@ vector<vector<int>> matPixelsToGridIndices(const vector<vector<Point>>& regions,
     vector<int> indices;
     indices.reserve(region.size());
     for (auto px : region) {
-      // reflect y points: grid origin is bottom left, mat origin is top left
-      int idx = ang_grid.subscriptsToIndex(ang_grid.h - 1 - px.y, px.x);
+      int idx = ang_grid.subscriptsToIndex(px.y, px.x);
       indices.push_back(idx);
     }
     region_grid_indices.push_back(indices);
