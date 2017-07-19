@@ -173,6 +173,8 @@ double CSQMI::csqmi(const grid_mapping::AngleGrid& grid,
     // aggregate CSQMI
     mi += beam_csqmi(o, cells, any_hit);
   }
+
+  return mi;
 }
 
 std::vector<double> CSQMI::csqmi(const grid_mapping::AngleGrid& grid, 
