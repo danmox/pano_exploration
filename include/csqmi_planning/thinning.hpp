@@ -28,10 +28,10 @@ int subIteration(cv::Mat img, const cv::Mat prev_img, Func cond)
         if (a < 2 || a > 6)
           continue;
 
-        int b = int( p2 == 0 && p3 == 1 ) + int( p3 == 0 && p4 == 1 ) +
-                int( p4 == 0 && p5 == 1 ) + int( p5 == 0 && p6 == 1 ) +
-                int( p6 == 0 && p7 == 1 ) + int( p7 == 0 && p8 == 1 ) +
-                int( p8 == 0 && p9 == 1 ) + int( p9 == 0 && p2 == 1 );
+        int b = int(p2 == 0 && p3 == 1) + int(p3 == 0 && p4 == 1) +
+                int(p4 == 0 && p5 == 1) + int(p5 == 0 && p6 == 1) +
+                int(p6 == 0 && p7 == 1) + int(p7 == 0 && p8 == 1) +
+                int(p8 == 0 && p9 == 1) + int(p9 == 0 && p2 == 1);
         if (b != 1)
           continue;
 
