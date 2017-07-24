@@ -1,0 +1,8 @@
+<library path="lib/libangle_grid_nodelet">
+  <class name="grid_mapping/AngleGridNodelet" type="grid_mapping::AngleGridNodelet"
+    base_class_type="nodelet::Nodelet">
+    <description>
+      A nodelet for building a angle occupancy grid.
+    </description>
+  </class>
+</library>

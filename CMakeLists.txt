@@ -11,6 +11,7 @@ find_package(catkin REQUIRED COMPONENTS
   sensor_msgs
   geometry_msgs
   message_generation
+  nodelet
   rosbag
   tf
 )
@@ -33,6 +34,7 @@ catkin_package(
     sensor_msgs
     geometry_msgs
     message_generation
+    nodelet
     rosbag
     tf
   DEPENDS OpenCV
@@ -53,6 +55,10 @@ set(SOURCE_FILES
 add_library(${PROJECT_NAME} ${SOURCE_FILES})
 add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS})
 target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES})
+
+add_library(angle_grid_nodelet src/angle_grid_nodelet.cpp)
+add_dependencies(angle_grid_nodelet ${${PROJECT_NAME}_EXPORTED_TARGETS})
+target_link_libraries(angle_grid_nodelet ${PROJECT_NAME} ${catkin_LIBRARIES})
 
 add_executable(grid_test src/main.cpp src/common.cpp)
 add_dependencies(grid_test ${${PROJECT_NAME}_EXPORTED_TARGETS})

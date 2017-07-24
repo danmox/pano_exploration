@@ -1,0 +1,13 @@
+<launch>
+
+  <node pkg="nodelet" type="nodelet" name="angle_grid_nodelet" 
+    args="standalone grid_mapping/AngleGridNodelet">
+    <param name="origin_x" type="double" value="0.0"/>
+    <param name="origin_y" type="double" value="0.0"/>
+    <param name="resolution" type="double" value="0.1"/>
+    <param name="bins" type="int" value="4"/>
+
+    <remap from="pan_files" to="panorama_files"/>
+  </node>
+
+</launch>

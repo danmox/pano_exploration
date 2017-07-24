@@ -14,9 +14,11 @@
   <depend>geometry_msgs</depend>
   <depend>message_generation</depend>
   <depend>message_runtime</depend>
+  <depend>nodelet</depend>
   <depend>rosbag</depend>
   <depend>tf</depend>
 
   <export>
+    <nodelet plugin="${prefix}/plugin/angle_grid_nodelet.xml"/>
   </export>
 </package>

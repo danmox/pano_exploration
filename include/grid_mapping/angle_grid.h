@@ -7,9 +7,9 @@
 #include <nav_msgs/OccupancyGrid.h>
 #include <geometry_msgs/Pose2D.h>
 #include <sensor_msgs/LaserScan.h>
+
 #include <vector>
 #include <string.h>
-#include <iostream>
 
 namespace grid_mapping {
 
