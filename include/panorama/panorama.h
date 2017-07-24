@@ -98,7 +98,6 @@ void Panorama::getTrans(std::string dest_frame, std::string src_frame,
     ROS_ERROR("Panorama::fetchTrans(): error fetching transform from %s "
             "to %s: %s", src_frame.c_str(), dest_frame.c_str(), ex.what());
     panorama::PanoramaResult result;
-    result.success = false;
     as.setAborted(result);
     return;
   }

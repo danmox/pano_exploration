@@ -25,7 +25,7 @@ void doneCB(const actionlib::SimpleClientGoalState& state,
             const PanoramaResultConstPtr& result)
 {
   ROS_INFO("doneCB(): finish state is: %s, result is: %s", 
-      state.toString().c_str(), result->success ? "true" : "false");
+      state.toString().c_str(), result->full_file_name.c_str());
 }
 
 int main(int argc, char** argv)
@@ -53,7 +53,7 @@ int main(int argc, char** argv)
       ROS_INFO("main(...): exiting");
       return 0;
     } else if (cmd.compare("pan") == 0) {
-      action_goal.name = "pan" + to_string(pan++);
+      action_goal.file_name = "pan" + to_string(pan++);
       //action_client.sendGoal(action_goal, &doneCB, &activeCB, &feedbackCB);
       action_client.sendGoal(action_goal);
       action_client.waitForResult();

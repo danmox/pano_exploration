@@ -123,7 +123,7 @@ void Panorama::goalCB()
     panorama_loop_thread.join();
 
   // fetch goal information
-  file_name = as.acceptNewGoal()->name;
+  file_name = as.acceptNewGoal()->file_name;
 
   // start new thread of execution
   panorama_loop_thread = thread(&Panorama::captureLoop, this);
@@ -255,7 +255,7 @@ void Panorama::captureLoop()
   sendSpinCommand(0.0);
 
   panorama::PanoramaResult result;
-  result.success = true;
+  result.full_file_name = full_file_name;
   as.setSucceeded(result);
 }
 
