@@ -27,7 +27,7 @@ class AngleGrid : public OccGrid
     virtual void update(const Point, const int, const int);
 
     int angleIndex(double) const;
-    void insertScan(const sensor_msgs::LaserScanConstPtr&,
+    virtual void insertScan(const sensor_msgs::LaserScanConstPtr&,
         const geometry_msgs::Pose2DConstPtr&);
     void insertPanorama(const std::string);
 

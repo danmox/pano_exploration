@@ -35,7 +35,7 @@ class OccGrid : public GridBase
     template<typename Grid>
     void insertMap(const Grid&);
 
-    void insertScan(const sensor_msgs::LaserScanConstPtr&,
+    virtual void insertScan(const sensor_msgs::LaserScanConstPtr&,
         const geometry_msgs::Pose2DConstPtr&);
 
     std::vector<double> filterLaserScan(const sensor_msgs::LaserScanConstPtr&);
