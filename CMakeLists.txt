@@ -60,7 +60,7 @@ add_library(angle_grid_nodelet src/angle_grid_nodelet.cpp)
 add_dependencies(angle_grid_nodelet ${${PROJECT_NAME}_EXPORTED_TARGETS})
 target_link_libraries(angle_grid_nodelet ${PROJECT_NAME} ${catkin_LIBRARIES})
 
-add_executable(grid_test src/main.cpp src/common.cpp)
+add_executable(grid_test src/angle_grid_test.cpp src/common.cpp)
 add_dependencies(grid_test ${${PROJECT_NAME}_EXPORTED_TARGETS})
 target_link_libraries(grid_test ${PROJECT_NAME} ${catkin_LIBRARIES} 
   ${OpenCV_LIBS})
