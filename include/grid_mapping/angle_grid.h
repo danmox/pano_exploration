@@ -26,10 +26,11 @@ class AngleGrid : public OccGrid
     virtual void update(const AngleGrid*);
     virtual void update(const Point, const int, const int);
 
+    virtual void updateRobotCells(const Point);
+
     int angleIndex(double) const;
     virtual void insertScan(const sensor_msgs::LaserScanConstPtr&,
         const geometry_msgs::Pose2DConstPtr&);
-    void insertPanorama(const std::string);
 
     OccupancyGridPtr createROSMsg();
 };

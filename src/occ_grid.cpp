@@ -1,4 +1,14 @@
 #include "grid_mapping/occ_grid.h"
+
+#include <ros/ros.h>
+#include <rosbag/bag.h>
+#include <rosbag/view.h>
+#include <geometry_msgs/PoseStamped.h>
+#include <geometry_msgs/TransformStamped.h>
+#include <sensor_msgs/CameraInfo.h>
+#include <sensor_msgs/Image.h>
+#include <tf/transform_datatypes.h>
+
 #include <unordered_set>
 #include <algorithm>
 #include <iterator>
@@ -186,6 +196,118 @@ void OccGrid::insertMap(const Grid& in)
 
   // update local grid with in_grid data
   update(&in);
+}
+
+// update the map from a saved panorama rosbag
+void OccGrid::insertPanorama(const std::string bagfile)
+{
+  rosbag::Bag bag;
+  bag.open(bagfile, rosbag::bagmode::Read);
+
+  // extract depth camera info
+  sensor_msgs::CameraInfo camera_info;
+  for (auto m : rosbag::View(bag, rosbag::TopicQuery("depth_camera_info"))) {
+    auto msg = m.instantiate<sensor_msgs::CameraInfo>();
+    if (msg) {
+      camera_info = *msg;
+      break;
+    }
+  }
+  int img_w = camera_info.width;
+  int img_h = camera_info.height;
+  double Cx = camera_info.K[2];
+  double fx = camera_info.K[0];
+  double fy = camera_info.K[4];
+
+  std::deque<geometry_msgs::PoseStamped> camera_poses;
+  std::deque<sensor_msgs::Image> imgs;
+  std::vector<std::string> topics = {"camera_pose", "depth"};
+  for (auto m : rosbag::View(bag, rosbag::TopicQuery(topics))) {
+    if (m.getTopic().compare("camera_pose") == 0)
+      camera_poses.push_back(*m.instantiate<geometry_msgs::PoseStamped>());
+    else if (m.getTopic().compare("depth") == 0)
+      imgs.push_back(*m.instantiate<sensor_msgs::Image>());
+
+    if (!camera_poses.empty() && !imgs.empty()) {
+      // convert camera pose to 2D pose
+      geometry_msgs::Pose2D pose;
+      pose.x = camera_poses.front().pose.position.x;
+      pose.y = camera_poses.front().pose.position.y;
+      pose.theta = tf::getYaw(camera_poses.front().pose.orientation);
+      geometry_msgs::Pose2DConstPtr pose_ptr(new geometry_msgs::Pose2D(pose));
+
+      // compute offset in pixels between center row of depth image and row in
+      // plane parallel to the ground (if camera is tilted up, we want to
+      // extract the row of the depth image that points directly foward -- as
+      // if the camera was not tilted)
+      double roll, tilt_angle, yaw;
+      tf::Quaternion quat;
+      tf::quaternionMsgToTF(camera_poses.front().pose.orientation, quat);
+      tf::Matrix3x3(quat).getRPY(roll, tilt_angle, yaw);
+      int tilt_offset = -fy * tan(tilt_angle);
+
+      sensor_msgs::LaserScan scan;
+      scan.angle_min = -atan2((double)img_w-1.0-Cx, fx);
+      scan.angle_max = atan2(Cx, fx);
+      scan.angle_increment =(scan.angle_max-scan.angle_min)/((double)img_w-1.0);
+      scan.time_increment = 0.0;
+      scan.scan_time = 1.0/30.0; // 30Hz
+      scan.range_min = 0.45; // Xtion min range
+      scan.range_max = 4.0; // Xtion max range
+      scan.header = imgs[0].header;
+      scan.header.frame_id = "world";
+      scan.ranges.reserve(img_w);
+
+      uint16_t* depth_row = reinterpret_cast<uint16_t*>(imgs[0].data.data());
+      int row_offset = img_h/2 + tilt_offset;
+      if (row_offset < 0 || row_offset >= img_w) {
+        ROS_FATAL("OccGrid::insertPanorama(...): Row %d not in depth image with"
+            " %d rows", row_offset, img_h);
+        exit(EXIT_FAILURE);
+      }
+      depth_row += (row_offset*img_w);
+      for (int u = img_w-1; u >= 0; --u) { // laserscans are logged CCW
+        double z = depth_row[u] / 1000.0;
+        double x = (u - Cx) * z / fx;
+        double r = sqrt(pow(x, 2.0) + pow(z, 2.0));
+        scan.ranges.push_back(r);
+      }
+      sensor_msgs::LaserScanConstPtr scan_ptr(new sensor_msgs::LaserScan(scan));
+
+      // update map with laserscan
+      insertScan(scan_ptr, pose_ptr);
+
+      camera_poses.pop_front();
+      imgs.pop_front();
+    }
+  }
+
+  // extract panorama pose
+  geometry_msgs::TransformStamped pan_pose;
+  for (auto m : rosbag::View(bag, rosbag::TopicQuery("panorama_pose"))) {
+    auto msg = m.instantiate<geometry_msgs::TransformStamped>();
+    if (msg) {
+      pan_pose = *msg;
+      break;
+    }
+  }
+
+  // ensure robot origin is marked as free (because of the slight offset between
+  // the pose of the robot and pose of the camera the exact position of the
+  // robot sometimes is not marked as free in the resulting occupancy grid)
+  Point po(pan_pose.transform.translation.x, pan_pose.transform.translation.y);
+  updateRobotCells(po);
+
+  bag.close();
+}
+
+void OccGrid::updateRobotCells(const Point po)
+{
+  int origin_cell = positionToIndex(po);
+  auto robot_cells = neighborIndices(origin_cell, 0.1);
+  robot_cells.push_back(origin_cell);
+  for (auto cell : robot_cells)
+    data[cell] -= 5.0; // sufficiently high log-odds free value
 }
 
 std::ostream& operator<<(std::ostream& out, const OccGrid& grid)

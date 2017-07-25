@@ -29,6 +29,8 @@ class OccGrid : public GridBase
     virtual void update(const OccGrid*);
     virtual void update(const Point, const int, const int);
 
+    virtual void updateRobotCells(const Point);
+
     void expandMap(const Point, const Point);
     template<typename Grid>
     void insertROSGridMsg(const nav_msgs::OccupancyGrid::ConstPtr&);
@@ -37,6 +39,7 @@ class OccGrid : public GridBase
 
     virtual void insertScan(const sensor_msgs::LaserScanConstPtr&,
         const geometry_msgs::Pose2DConstPtr&);
+    void insertPanorama(const std::string);
 
     std::vector<double> filterLaserScan(const sensor_msgs::LaserScanConstPtr&);
 
