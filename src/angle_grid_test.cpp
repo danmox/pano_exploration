@@ -16,10 +16,12 @@ int main(int argc, char** argv)
   AngleGrid grid(Point(0.0, 0.0), 0.1, 1, 1);
   grid.insertPanorama(argv[1]);
 
+  /*
   rosbag::Bag bag;
   grid_mapping::OccupancyGridPtr grid_ptr = grid.createROSMsg();
-  bag.open("data/pan_grid.bag", rosbag::bagmode::Write);
+  bag.open("data/angle_grid.bag", rosbag::bagmode::Write);
   bag.write("grid", grid_ptr->header.stamp, grid_ptr);
+  */
 
   for (int i = 0; i < grid.layers; ++i) {
     cv::Mat img = createGridImage(grid, i);
