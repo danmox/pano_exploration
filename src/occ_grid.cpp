@@ -160,7 +160,7 @@ void OccGrid::insertScan(const sensor_msgs::LaserScanConstPtr& scan,
   for (double range : ranges) {
     Point ray_end = scan_origin + range*Point(cos(angle), sin(angle));
 
-    if (range < scan->range_max)
+    if (range < scan->range_max && range > scan->range_min)
       occupied_cells.emplace(positionToIndex(ray_end));
 
     for (int cell : rayCast(scan_origin, ray_end))
