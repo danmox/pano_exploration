@@ -46,10 +46,12 @@ include_directories(
 )
 
 set(SOURCE_FILES
+  src/pixel_density_grid.cpp
   src/angle_grid.cpp
   src/grid_base.cpp
   src/occ_grid.cpp
   src/point.cpp
+  src/common.cpp
 )
 
 add_library(${PROJECT_NAME} ${SOURCE_FILES})
@@ -69,3 +71,9 @@ add_executable(angle_grid_test src/angle_grid_test.cpp src/common.cpp)
 add_dependencies(angle_grid_test ${${PROJECT_NAME}_EXPORTED_TARGETS})
 target_link_libraries(angle_grid_test ${PROJECT_NAME} ${catkin_LIBRARIES} 
   ${OpenCV_LIBS})
+
+add_executable(pixel_density_grid_test src/pixel_density_grid_test.cpp 
+  src/common.cpp)
+add_dependencies(pixel_density_grid_test ${${PROJECT_NAME}_EXPORTED_TARGETS})
+target_link_libraries(pixel_density_grid_test ${PROJECT_NAME} 
+  ${catkin_LIBRARIES} ${OpenCV_LIBS})

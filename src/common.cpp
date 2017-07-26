@@ -3,6 +3,19 @@
 #include <vector>
 #include <cmath>
 #include <iterator>
+#include <algorithm>
+
+cv::Mat createGridImage(const grid_mapping::PixelDensityGrid& grid)
+{
+  std::vector<int> map_data;
+  std::transform(grid.data.begin(), grid.data.end(),
+      std::back_inserter(map_data),
+      [](double a){ return static_cast<int>(a); });
+  cv::Mat img = cv::Mat(map_data).reshape(0, grid.h);
+  img.convertTo(img, CV_8UC1);
+  cv::flip(img, img, 0);
+  return img;
+}
 
 cv::Mat createGridImage(const grid_mapping::OccGrid& grid)
 {
@@ -20,7 +33,7 @@ cv::Mat createGridImage(const grid_mapping::AngleGrid& grid,
     const unsigned int layer)
 {
   if (layer >= grid.layers) {
-    ROS_FATAL("createAngleGridImage(...): invalid layer argument");
+    ROS_FATAL("createGridImage(...): invalid layer argument");
     exit(EXIT_FAILURE);
   }
   const int layer_size = grid.w*grid.h;
