@@ -5,7 +5,10 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 set(CMAKE_BUILD_TYPE Debug)
 cmake_policy(SET CMP0046 OLD)
 
+find_package(OpenCV REQUIRED)
+
 find_package(catkin REQUIRED COMPONENTS
+  cv_bridge
   geometry_msgs
   message_generation
   nodelet
@@ -39,6 +42,7 @@ catkin_package(
   INCLUDE_DIRS include
   LIBRARIES ${PROJECT_NAME}_nodelet
   CATKIN_DEPENDS 
+    cv_bridge
     geometry_msgs
     message_runtime 
     nodelet
@@ -53,6 +57,7 @@ catkin_package(
     nav_msgs
     rosbag
     openni2_xtion
+  DEPENDS OpenCV
 )
 
 include_directories(
@@ -74,3 +79,7 @@ target_link_libraries(panorama_node ${catkin_LIBRARIES} ${OPENNI2_LIBRARY})
 add_executable(action_client src/panorama_action_client.cpp)
 add_dependencies(action_client ${PROJECT_NAME}_generate_messages_cpp)
 target_link_libraries(action_client ${catkin_LIBRARIES})
+
+add_executable(show_panorama src/show_panorama.cpp)
+add_dependencies(show_panorama ${PROJECT_NAME}_generate_messages_cpp)
+target_link_libraries(show_panorama ${catkin_LIBRARIES})
