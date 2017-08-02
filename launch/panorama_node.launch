@@ -23,7 +23,7 @@
         <param name="camera_frame"        value="$(arg camera_frame)"/>
         <param name="robot_frame"         value="$(arg robot_frame)"/>
         <param name="odom_frame"          value="$(arg odom_frame)"/>
-        <param name="image_registration"  value="$(arg image_registration"/>
+        <param name="image_registration"  value="$(arg image_registration)"/>
     </node>
 
 </launch>
