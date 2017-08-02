@@ -1,5 +1,4 @@
 #include "grid_mapping/pixel_density_grid.h"
-#include "grid_mapping/common.h"
 
 #include <rosbag/bag.h>
 #include <rosbag/view.h>

@@ -4,6 +4,7 @@
 #include "grid_mapping/pixel_density_grid.h"
 #include "grid_mapping/angle_grid.h"
 #include "grid_mapping/occ_grid.h"
+
 #include <opencv2/opencv.hpp>
 #include <string>
 

@@ -1,4 +1,5 @@
 #include "grid_mapping/common.h"
+
 #include <ros/ros.h>
 #include <vector>
 #include <cmath>
