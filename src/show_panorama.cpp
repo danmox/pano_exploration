@@ -42,10 +42,8 @@ int main(int argc, char** argv)
       color_imgs.push_back(rawc);
     } else if (m.getTopic().compare("depth") == 0) {
       cv::Mat rawd = ROSImageToMat(m.instantiate<sensor_msgs::Image>());
-      double max, min;
-      cv::minMaxLoc(rawd, &min, &max);
       cv::Mat scaled_depth;
-      rawd.convertTo(scaled_depth, CV_8UC1, 255.0/max);
+      rawd.convertTo(scaled_depth, CV_8UC1, 255.0/4000);
       cv::applyColorMap(scaled_depth, scaled_depth, cv::COLORMAP_HOT);
       depth_imgs.push_back(scaled_depth);
     }
@@ -60,15 +58,46 @@ int main(int argc, char** argv)
   cv::namedWindow("Panorama Frames", cv::WINDOW_NORMAL);
   cv::Size csz = color_imgs[0].size();
   cv::Size dsz = depth_imgs[0].size();
+  std::vector<cv::Mat> combined_imgs;
   for (int i = 0; i < depth_imgs.size(); ++i) {
     cv::Mat combined = cv::Mat(csz.height, csz.width+dsz.width, CV_8UC3);
     cv::Mat left(combined, cv::Rect(0, 0, csz.width, csz.height));
     color_imgs[i].copyTo(left);
     cv::Mat right(combined, cv::Rect(csz.width, 0, dsz.width, dsz.height));
     depth_imgs[i].copyTo(right);
-    cv::imshow("Panorama Frames", combined);
+    combined_imgs.push_back(combined);
+  }
+
+  int frame_idx = 0;
+  int imgs = combined_imgs.size();
+  cv::imshow("Panorama Frames", combined_imgs[frame_idx]);
+  while (true) {
+    char key = (char)cv::waitKey(30);
+    if (key == 27) break;
+    if (key == 106) {
+      if (frame_idx < imgs-1) ++frame_idx;
+      cv::imshow("Panorama Frames", combined_imgs[frame_idx]);
+    }
+    if (key == 107) {
+      if (frame_idx > 0) --frame_idx;
+      cv::imshow("Panorama Frames", combined_imgs[frame_idx]);
+    }
+    if (key == 102) {
+      cv::imshow("Panorama Frames", combined_imgs.front());
+      frame_idx = 0;
+    }
+    if (key == 108) {
+      cv::imshow("Panorama Frames", combined_imgs.back());
+      frame_idx = imgs-1;
+    }
+  }
+
+  /*
+  for (int i = 0; i < depth_imgs.size(); ++i) {
+    cv::imshow("Panorama Frames", combined_imgs[i]);
     cv::waitKey(0);
   }
+  */
 
   return 0;
 }

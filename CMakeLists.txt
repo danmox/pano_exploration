@@ -80,9 +80,9 @@ add_executable(action_client src/panorama_action_client.cpp)
 add_dependencies(action_client ${PROJECT_NAME}_generate_messages_cpp)
 target_link_libraries(action_client ${catkin_LIBRARIES})
 
-add_executable(show_panorama src/show_panorama.cpp)
-add_dependencies(show_panorama ${PROJECT_NAME}_generate_messages_cpp)
-target_link_libraries(show_panorama ${catkin_LIBRARIES})
+add_executable(viz_pan src/show_panorama.cpp)
+add_dependencies(viz_pan ${PROJECT_NAME}_generate_messages_cpp)
+target_link_libraries(viz_pan ${catkin_LIBRARIES})
 
 add_executable(panorama_cli src/panorama_cli.cpp)
 add_dependencies(panorama_cli ${PROJECT_NAME}_generate_messages_cpp)
