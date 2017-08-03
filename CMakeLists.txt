@@ -10,6 +10,7 @@ find_package(catkin REQUIRED COMPONENTS
   nodelet
   roscpp
   std_msgs
+  geometry_msgs
 )
 
 catkin_package(
@@ -21,6 +22,7 @@ catkin_package(
     nodelet
     roscpp
     std_msgs
+    geometry_msgs
 )
 
 include_directories(
@@ -28,6 +30,5 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
 )
 
-add_library(${PROJECT_NAME} ${SOURCE_FILES})
-add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS})
-target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES})
+add_executable(exploration_manager src/exploration_manager.cpp)
+target_link_libraries(exploration_manager ${catkin_LIBRARIES})
