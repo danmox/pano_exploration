@@ -51,29 +51,29 @@ set(SOURCE_FILES
   src/grid_base.cpp
   src/occ_grid.cpp
   src/point.cpp
+  src/common.cpp
 )
 
 add_library(${PROJECT_NAME} ${SOURCE_FILES})
 add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS})
 target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES})
 
-add_library(angle_grid_nodelet src/angle_grid_nodelet.cpp src/common.cpp)
+add_library(angle_grid_nodelet src/angle_grid_nodelet.cpp)
 add_dependencies(angle_grid_nodelet ${${PROJECT_NAME}_EXPORTED_TARGETS})
 target_link_libraries(angle_grid_nodelet ${PROJECT_NAME} ${catkin_LIBRARIES}
   ${OpenCV_LIBS})
 
-add_executable(occ_grid_test src/occ_grid_test.cpp src/common.cpp)
+add_executable(occ_grid_test src/occ_grid_test.cpp)
 add_dependencies(occ_grid_test ${${PROJECT_NAME}_EXPORTED_TARGETS})
 target_link_libraries(occ_grid_test ${PROJECT_NAME} ${catkin_LIBRARIES} 
   ${OpenCV_LIBS})
 
-add_executable(angle_grid_test src/angle_grid_test.cpp src/common.cpp)
+add_executable(angle_grid_test src/angle_grid_test.cpp)
 add_dependencies(angle_grid_test ${${PROJECT_NAME}_EXPORTED_TARGETS})
 target_link_libraries(angle_grid_test ${PROJECT_NAME} ${catkin_LIBRARIES} 
   ${OpenCV_LIBS})
 
-add_executable(pixel_density_grid_test src/pixel_density_grid_test.cpp 
-  src/common.cpp)
+add_executable(pixel_density_grid_test src/pixel_density_grid_test.cpp)
 add_dependencies(pixel_density_grid_test ${${PROJECT_NAME}_EXPORTED_TARGETS})
 target_link_libraries(pixel_density_grid_test ${PROJECT_NAME} 
   ${catkin_LIBRARIES} ${OpenCV_LIBS})
