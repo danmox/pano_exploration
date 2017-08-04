@@ -1,12 +1,33 @@
 #include <ros/ros.h>
-
 #include <actionlib/client/simple_action_client.h>
 #include <panorama/PanoramaAction.h>
 #include <geometry_msgs/Twist.h>
+#include <grid_mapping/angle_grid.h>
+#include <nav_msgs/OccupancyGrid.h>
 
 #include <string.h>
 
 typedef actionlib::SimpleActionClient<panorama::PanoramaAction> PanAC;
+
+void feedbackCB(const panorama::PanoramaFeedbackConstPtr& feedback)
+{
+  ROS_INFO("Captured frame %d of 72", feedback->frames_captured);
+}
+
+void activeCB()
+{
+  ROS_INFO("Capturing panorama...");
+}
+
+std::string pan_file;
+void doneCB(const actionlib::SimpleClientGoalState& state,
+            const panorama::PanoramaResultConstPtr& result)
+{
+  ROS_INFO("Panorama completed with %s and saved to %s", 
+      state.toString().c_str(), result->full_file_name.c_str());
+  if (state.toString().compare("SUCCEEDED") == 0)
+    pan_file = result->full_file_name;
+}
 
 int main(int argc, char** argv)
 {
@@ -18,6 +39,7 @@ int main(int argc, char** argv)
   ros::NodeHandle nh, pnh("~");
 
   ros::Publisher vel_pub = nh.advertise<geometry_msgs::Twist>("vel_cmds", 10);
+  ros::Publisher map_pub = nh.advertise<nav_msgs::OccupancyGrid>("map", 1);
 
   std::string tf_prefix;
   if (!pnh.getParam("tf_prefix", tf_prefix)) {
@@ -25,40 +47,43 @@ int main(int argc, char** argv)
     exit(EXIT_FAILURE);
   }
 
-  /*
-  string server_name = tf_prefix + string(argv[1]) + "/panorama_action_server";
-  ActionClient ac(server_name.c_str(), true);
-  ROS_INFO("Waiting for action server to start: %s\n", server_name.c_str());
+  std::string server_name = "/" + tf_prefix + "/panorama_action_server";
+  PanAC ac(server_name.c_str(), true);
+  ROS_INFO("Waiting for action server to start: %s", server_name.c_str());
   ac.waitForServer();
-  ROS_INFO("%s is ready\n", server_name.c_str());
-  */
+  ROS_INFO("%s is ready", server_name.c_str());
 
   /*
    * Make robot complete a small circle to help initialize SLAM and relative
    * localization (for the multi-robot case)
    */
 
-  double v = 0.15; // m/s
-  double r = 0.5; // m
+  double v = 0.1; // m/s
+  double r = 0.3; // m
   double w = v / r;
   geometry_msgs::Twist turn_cmd;
   turn_cmd.linear.x = v;
   turn_cmd.angular.z = w;
-  double t = round(2.0 * M_PI * r / v);
+  double t = 2.0 * M_PI * r / v;
   ros::Rate loop_rate(10);
-  int loops = 0;
-  while (ros::ok() && loops < (int)t*10) {
+  ros::Time start = ros::Time::now();
+  while (ros::ok() && (ros::Time::now() - start).toSec() < t + 1.0) {
     vel_pub.publish(turn_cmd);
     loop_rate.sleep();
-    ++loops;
   }
 
-  /*
-  PanoramaGoal ag;
-  ag.file_name = "robot" + string(argv[1]) + "pan" + to_string(pan++);
+  panorama::PanoramaGoal ag;
+  ag.file_name = tf_prefix + "pan" + std::to_string(1);
   ac.sendGoal(ag, &doneCB, &activeCB, &feedbackCB);
   ac.waitForResult();
-  */
+
+  grid_mapping::AngleGrid ang_grid(grid_mapping::Point(0.0, 0.0), 0.1, 1, 1);
+  if (pan_file.size() != 0)
+    ang_grid.insertPanorama(pan_file);
+  else
+    ROS_ERROR("pan_file is empty");
+
+  map_pub.publish(ang_grid.createROSOGMsg());
 
   return 0;
 }
