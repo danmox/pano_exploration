@@ -56,7 +56,7 @@ set(SOURCE_FILES
 
 add_library(${PROJECT_NAME} ${SOURCE_FILES})
 add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS})
-target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES})
+target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES} ${OpenCV_LIBS})
 
 add_library(angle_grid_nodelet src/angle_grid_nodelet.cpp)
 add_dependencies(angle_grid_nodelet ${${PROJECT_NAME}_EXPORTED_TARGETS})
