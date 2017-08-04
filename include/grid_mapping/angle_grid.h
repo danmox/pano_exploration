@@ -33,6 +33,7 @@ class AngleGrid : public OccGrid
         const geometry_msgs::Pose2DConstPtr&);
 
     OccupancyGridPtr createROSMsg();
+    nav_msgs::OccupancyGridPtr createROSOGMsg();
 };
 
 } // namespace grid_mapping

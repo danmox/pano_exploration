@@ -175,4 +175,44 @@ OccupancyGridPtr AngleGrid::createROSMsg()
   return grid;
 }
 
+nav_msgs::OccupancyGridPtr AngleGrid::createROSOGMsg()
+{
+  static int seq = 0;
+
+  nav_msgs::OccupancyGridPtr grid(new nav_msgs::OccupancyGrid);
+
+  // make sure ros::Time is running
+  if (!ros::Time::isValid())
+    ros::Time::init();
+
+  grid->header.seq = seq++;
+  grid->header.stamp = ros::Time::now();
+  grid->info.resolution = resolution;
+  grid->info.width = w;
+  grid->info.height = h;
+  grid->info.origin.position.x = origin.x;
+  grid->info.origin.position.y = origin.y;
+
+  // convert perspective (multi-layered) grid to 2D grid
+  size_t layer_size = w*h;
+  grid->data = std::vector<signed char>(layer_size, 50);
+  for (size_t i = 0; i < layer_size; ++i) {
+
+    int min = 50, max = 50;
+    for (int l = 0; l < layers; ++l) {
+      int val = 100*cellProb(i + l*layer_size);
+      min = val < min ? val : min;
+      max = val > max ? val : max;
+    }
+
+    // give preference to occupied cells
+    if (max > 50)
+      grid->data[i] = max;
+    else if (min < 50)
+      grid->data[i] = min;
+  }
+
+  return grid;
+}
+
 } // namespace grid_mapping

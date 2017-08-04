@@ -28,5 +28,9 @@ int main(int argc, char** argv)
     displayImageComplement(img, "pan1");
   }
 
+  nav_msgs::OccupancyGrid ros_grid = *grid.createROSOGMsg();
+  cv::Mat img = createGridImage(ros_grid);
+  displayImageComplement(img, "ros img");
+
   return 0;
 }
