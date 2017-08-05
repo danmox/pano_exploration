@@ -14,6 +14,7 @@ find_package(OpenCV REQUIRED)
 
 catkin_package(
   INCLUDE_DIRS include
+  LIBRARIES ${PROJECT_NAME}
   CATKIN_DEPENDS roscpp rosbag grid_mapping
   DEPENDS OpenCV
 )
@@ -30,5 +31,9 @@ set(PROJECT_SOURCE_FILES
   src/csqmi.cpp
 )
 
-add_executable(skeleton src/main.cpp ${PROJECT_SOURCE_FILES})
-target_link_libraries(skeleton ${catkin_LIBRARIES} ${OpenCV_LIBS})
+add_library(${PROJECT_NAME} ${PROJECT_SOURCE_FILES})
+#add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS})
+target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES} ${OpenCV_LIBS})
+
+add_executable(planning src/main.cpp ${PROJECT_SOURCE_FILES})
+target_link_libraries(planning ${catkin_LIBRARIES} ${OpenCV_LIBS})
