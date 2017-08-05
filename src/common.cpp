@@ -4,30 +4,36 @@
 #include <iostream>
 #include <vector>
 #include <stdlib.h>
+#include <string.h>
 
 void displayImageComplement(const cv::Mat& img, const std::string name)
 {
-  cv::namedWindow(name, cv::WINDOW_NORMAL);
   double min, max;
   cv::minMaxLoc(img, &min, &max);
-  cv::imshow(name, 255 - img*(255/max));
-  cv::waitKey(0);
+  displayRawImage(255 - img*(255/max), name);
 }
 
 void displayImage(const cv::Mat& img, const std::string name)
 {
-  cv::namedWindow(name, cv::WINDOW_NORMAL);
   double min, max;
   cv::minMaxLoc(img, &min, &max);
-  cv::imshow(name, img*(255/max));
-  cv::waitKey(0);
+  displayRawImage(img*(255/max), name);
 }
 
 void displayRawImage(const cv::Mat& img, const std::string name)
 {
+  static int save_count = 0;
   cv::namedWindow(name, cv::WINDOW_NORMAL);
   cv::imshow(name, img);
-  cv::waitKey(0);
+  char key = (char)cv::waitKey(0);
+
+  if (key == 115) { // 's' for save
+    std::string filename = "image" + std::to_string(++save_count) + ".yaml";
+    cv::FileStorage fs(filename, cv::FileStorage::WRITE);
+    fs << "Mat" << img;
+    fs.release();
+    std::cout << "Wrote image to file: " << filename.c_str() << std::endl;
+  }
 }
 
 cv::Mat loadMat(std::string file)
