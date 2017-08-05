@@ -14,10 +14,15 @@ using namespace cv;
 
 int main(int argc, char** argv)
 {
+  if (argc < 2) {
+    cout << "Please supply a bag with grid_mapping::OccupancyGrid msgs" << endl;
+    exit(EXIT_FAILURE);
+  }
+
   // read OccupancyGrid from saved bag
   Mat grid_img;
   rosbag::Bag bag;
-  bag.open("data/pan_grid.bag", rosbag::bagmode::Read);
+  bag.open(argv[1], rosbag::bagmode::Read);
   grid_mapping::OccupancyGridConstPtr grid;
   for (auto m : rosbag::View(bag)) {
     grid = m.instantiate<grid_mapping::OccupancyGrid>();
