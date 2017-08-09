@@ -40,7 +40,7 @@ int main(int argc, char** argv)
 
   ros::Publisher vel_pub, viz_map_pub, ang_grid_pub;
   vel_pub = nh.advertise<geometry_msgs::Twist>("velocity_commands", 10);
-  viz_map_pub = nh.advertise<nav_msgs::OccupancyGrid>("2D_map", 2);
+  viz_map_pub = nh.advertise<nav_msgs::OccupancyGrid>("map_2D", 2);
   ang_grid_pub = nh.advertise<grid_mapping::OccupancyGrid>("angle_grid", 2);
 
   std::string tf_prefix;
