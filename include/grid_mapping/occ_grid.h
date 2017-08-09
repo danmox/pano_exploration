@@ -9,6 +9,7 @@
 #include <sensor_msgs/LaserScan.h>
 #include <vector>
 #include <iostream>
+#include <string.h>
 
 namespace grid_mapping {
 
@@ -19,6 +20,7 @@ class OccGrid : public GridBase
 {
   public:
     std::vector<double> data;
+    std::string frame_id;
 
     double cellProb(const int) const;
 

@@ -255,7 +255,7 @@ void OccGrid::insertPanorama(const std::string bagfile)
       scan.range_min = 0.45; // Xtion min range
       scan.range_max = 4.0; // Xtion max range
       scan.header = imgs[0].header;
-      scan.header.frame_id = "world";
+      scan.header.frame_id = camera_poses.front().header.frame_id; //robotx/map
       scan.ranges.reserve(img_w);
 
       uint16_t* depth_row = reinterpret_cast<uint16_t*>(imgs[0].data.data());
@@ -288,6 +288,7 @@ void OccGrid::insertPanorama(const std::string bagfile)
     auto msg = m.instantiate<geometry_msgs::TransformStamped>();
     if (msg) {
       pan_pose = *msg;
+      frame_id = msg->header.frame_id; // robotX/map
       break;
     }
   }

@@ -161,6 +161,7 @@ OccupancyGridPtr AngleGrid::createROSMsg()
 
   grid->header.seq = seq++;
   grid->header.stamp = ros::Time::now();
+  grid->header.frame_id = frame_id;
   grid->resolution = resolution;
   grid->width = w;
   grid->height = h;
@@ -187,6 +188,7 @@ nav_msgs::OccupancyGridPtr AngleGrid::createROSOGMsg()
 
   grid->header.seq = seq++;
   grid->header.stamp = ros::Time::now();
+  grid->header.frame_id = frame_id;
   grid->info.resolution = resolution;
   grid->info.width = w;
   grid->info.height = h;
