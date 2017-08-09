@@ -14,7 +14,7 @@
   <machine name="robot1" address="192.168.1.151" user="odroid"
     env-loader="~/catkin_ws/src/robot_io/launch/env/$(arg network)_env_loader.zsh"
     default="true"/>
-  <include file="$(find robot_io)/launch/mast.launch">
+  <include file="$(find csqmi_exploration)/launch/mast.launch">
       <arg name="tf_prefix"       value="robot1"/>
       <arg name="radio_id"        value="101"/>
       <arg name="ranging_radio"   value="$(arg ranging_radios)"/>
