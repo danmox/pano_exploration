@@ -124,7 +124,7 @@ std::vector<double> OccGrid::filterLaserScan(const sensor_msgs::
     else if (it != ranges.begin())
       last_range = *(it-1);
     else // the entire laser scan is NANs
-      return std::vector<double>(ranges.size(), 0.0);
+      return std::vector<double>(ranges.size(), scan->range_max);
 
     // if the last valid range was closer to the sensor's maximum range than 
     // its minimum range, assume that the NANs should be the maximum range
