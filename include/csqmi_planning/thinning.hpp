@@ -3,7 +3,7 @@
 
 #include <opencv2/opencv.hpp>
 
-void computeSkeleton(cv::Mat& img_in, cv::Mat& img_out);
+void computeSkeleton(cv::Mat& img_in, cv::Mat& img_out, int erode_its = 2);
 
 template <typename Func>
 int subIteration(cv::Mat img, const cv::Mat prev_img, Func cond)

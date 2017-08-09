@@ -11,7 +11,7 @@ std::ostream& operator<<(std::ostream& out, const cv::Vec4i& v) {
   return out;
 }
 
-void computeSkeleton(cv::Mat& img_in, cv::Mat& img_out)
+void computeSkeleton(cv::Mat& img_in, cv::Mat& img_out, int erode_its)
 {
   img_in.convertTo(img_in, CV_8UC1);
 
@@ -22,7 +22,7 @@ void computeSkeleton(cv::Mat& img_in, cv::Mat& img_out)
 
   // erode image to cut down on noise
   cv::Mat se = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3,3));
-  cv::erode(img, img, se, cv::Point(-1,-1), 4);
+  cv::erode(img, img, se, cv::Point(-1,-1), erode_its);
 
   auto cond1 = [] (int p2, int p4, int p6, int p8) { 
     return (p2*p4*p6 != 0) || (p4*p6*p8 != 0); };
