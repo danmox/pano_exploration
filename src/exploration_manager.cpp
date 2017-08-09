@@ -53,11 +53,18 @@ int main(int argc, char** argv)
   ac.waitForServer();
   ROS_INFO("%s is ready", server_name.c_str());
 
+  ros::Rate countdown(1);
+  for (int i = 10; i > 0; --i) {
+    ROS_INFO("Beginning exploration in %d seconds...", i);
+    countdown.sleep();
+  }
+
   /*
    * Make robot complete a small circle to help initialize SLAM and relative
    * localization (for the multi-robot case)
    */
 
+  ROS_INFO("Running robot in a small circle");
   double v = 0.1; // m/s
   double r = 0.3; // m
   double w = v / r;
@@ -83,7 +90,10 @@ int main(int argc, char** argv)
   else
     ROS_ERROR("pan_file is empty");
 
-  map_pub.publish(ang_grid.createROSOGMsg());
+  nav_msgs::OccupancyGridPtr grid_msg = ang_grid.createROSOGMsg();
+  map_pub.publish(grid_msg);
+
+  ros::spin();
 
   return 0;
 }
