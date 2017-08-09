@@ -59,6 +59,17 @@ cv::Mat loadMat(std::string file)
 
 typedef grid_mapping::OccupancyGridConstPtr GridConstPtr;
 
+void pixelDensityGridToMat(const grid_mapping::PixelDensityGrid& grid,
+    cv::Mat& img)
+{
+  std::vector<int> map_data;
+  std::transform(grid.data.begin(), grid.data.end(),
+      std::back_inserter(map_data),
+      [](unsigned char a){ return static_cast<int>(a*255.0/100.0); });
+  img = cv::Mat(map_data).reshape(0, grid.h);
+  img.convertTo(img, CV_8UC1);
+}
+
 void occupancyGridToMat(const GridConstPtr& grid, cv::Mat& img, const int layer)
 {
   grid_mapping::AngleGrid ang_grid(grid);
