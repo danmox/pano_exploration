@@ -21,6 +21,7 @@ class OccGrid : public GridBase
   public:
     std::vector<double> data;
     std::string frame_id;
+    double range_min, range_max;
 
     double cellProb(const int) const;
 

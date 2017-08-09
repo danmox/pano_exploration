@@ -16,7 +16,7 @@
 namespace grid_mapping {
 
 OccGrid::OccGrid(Point origin_, double res, int w_, int h_, bool alloc_data) :
-  GridBase(origin_, res, w_, h_)
+  GridBase(origin_, res, w_, h_), range_min(0.45), range_max(4.0)
 {
   if (alloc_data)
     data = std::vector<double>(w*h, 0.0);
@@ -24,7 +24,8 @@ OccGrid::OccGrid(Point origin_, double res, int w_, int h_, bool alloc_data) :
 
 OccGrid::OccGrid(const nav_msgs::OccupancyGrid::ConstPtr& msg) :
   GridBase(Point(msg->info.origin.position.x, msg->info.origin.position.y),
-      msg->info.resolution, msg->info.width, msg->info.height)
+      msg->info.resolution, msg->info.width, msg->info.height), 
+  range_min(0.45), range_max(4.0)
 {
   data.reserve(msg->data.size());
   for (auto cell : msg->data)
@@ -32,8 +33,7 @@ OccGrid::OccGrid(const nav_msgs::OccupancyGrid::ConstPtr& msg) :
 }
 
 OccGrid::OccGrid(const grid_mapping::OccupancyGrid::ConstPtr& msg) :
-  GridBase(msg),
-  data(msg->data)
+  GridBase(msg), data(msg->data), range_min(0.45), range_max(4.0)
 {
 }
 
@@ -252,10 +252,9 @@ void OccGrid::insertPanorama(const std::string bagfile)
       scan.angle_increment =(scan.angle_max-scan.angle_min)/((double)img_w-1.0);
       scan.time_increment = 0.0;
       scan.scan_time = 1.0/30.0; // 30Hz
-      scan.range_min = 0.45; // Xtion min range
-      scan.range_max = 4.0; // Xtion max range
+      scan.range_min = range_min;
+      scan.range_max = range_max;
       scan.header = imgs[0].header;
-      scan.header.frame_id = camera_poses.front().header.frame_id; //robotx/map
       scan.ranges.reserve(img_w);
 
       uint16_t* depth_row = reinterpret_cast<uint16_t*>(imgs[0].data.data());
