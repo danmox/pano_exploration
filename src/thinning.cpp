@@ -11,8 +11,12 @@ std::ostream& operator<<(std::ostream& out, const cv::Vec4i& v) {
   return out;
 }
 
-void computeSkeleton(cv::Mat& img_in, cv::Mat& img_out, int erode_its)
+void computeSkeleton(grid_mapping::AngleGrid& ang_grid, cv::Mat& img_out,
+    int erode_its)
 {
+  cv::Mat img_in;
+  occupancyGridToMat(ang_grid, img_in);
+
   img_in.convertTo(img_in, CV_8UC1);
 
   // pad image, invert colors, and convert to binary image

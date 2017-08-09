@@ -2,8 +2,10 @@
 #define THINNING_HPP
 
 #include <opencv2/opencv.hpp>
+#include <grid_mapping/angle_grid.h>
 
-void computeSkeleton(cv::Mat& img_in, cv::Mat& img_out, int erode_its = 2);
+void computeSkeleton(grid_mapping::AngleGrid& ang_grid, cv::Mat& img_out,
+    int erode_its = 2);
 
 template <typename Func>
 int subIteration(cv::Mat img, const cv::Mat prev_img, Func cond)
