@@ -38,11 +38,16 @@ int main(int argc, char** argv)
   ros::init(argc, argv, "csqmi_exploration_manager");
   ros::NodeHandle nh, pnh("~");
 
-  ros::Publisher vel_pub = nh.advertise<geometry_msgs::Twist>("vel_cmds", 10);
-  ros::Publisher map_pub = nh.advertise<nav_msgs::OccupancyGrid>("map", 1);
+  ros::Publisher vel_pub, viz_map_pub, ang_grid_pub;
+  vel_pub = nh.advertise<geometry_msgs::Twist>("velocity_commands", 10);
+  viz_map_pub = nh.advertise<nav_msgs::OccupancyGrid>("2D_map", 2);
+  ang_grid_pub = nh.advertise<grid_mapping::OccupancyGrid>("angle_grid", 2);
 
   std::string tf_prefix;
-  if (!pnh.getParam("tf_prefix", tf_prefix)) {
+  double scan_range_min, scan_range_max;
+  if (!pnh.getParam("tf_prefix", tf_prefix) ||
+      !nh.getParam("/scan_range_min", scan_range_min) ||
+      !nh.getParam("/scan_range_max", scan_range_max)) {
     ROS_FATAL("main(...): failed to read params from server");
     exit(EXIT_FAILURE);
   }
@@ -79,19 +84,26 @@ int main(int argc, char** argv)
     loop_rate.sleep();
   }
 
+  /*
+   * Collect panorama, insert it into the angle grid, and publish the angle grid
+   * and 2D rviz version
+   */
+
   panorama::PanoramaGoal ag;
   ag.file_name = tf_prefix + "pan" + std::to_string(1);
   ac.sendGoal(ag, &doneCB, &activeCB, &feedbackCB);
   ac.waitForResult();
 
   grid_mapping::AngleGrid ang_grid(grid_mapping::Point(0.0, 0.0), 0.1, 1, 1);
+  ang_grid.range_min = scan_range_min;
+  ang_grid.range_max = scan_range_max;
   if (pan_file.size() != 0)
     ang_grid.insertPanorama(pan_file);
   else
     ROS_ERROR("pan_file is empty");
 
   nav_msgs::OccupancyGridPtr grid_msg = ang_grid.createROSOGMsg();
-  map_pub.publish(grid_msg);
+  viz_map_pub.publish(grid_msg);
 
   ros::spin();
 
