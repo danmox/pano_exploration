@@ -55,7 +55,7 @@ Visualization Manager:
       Draw Behind: false
       Enabled: true
       Name: AngleGrid
-      Topic: /robot1/angle_grid
+      Topic: /robot1/2D_map
       Unreliable: false
       Use Timestamp: false
       Value: true
