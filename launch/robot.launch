@@ -2,13 +2,11 @@
 
   <arg name="tf_prefix"/>
 
-  <group ns="$(arg tf_prefix)">
-    <node pkg="csqmi_exploration" type="exploration_manager" 
-      name="exploration_manager" output="screen">
-      <remap from="vel_cmds"  to="velocity_commands"/>
-      <remap from="map"       to="angle_grid"/>
-      <param name="tf_prefix" value="$(arg tf_prefix)"/>
-    </node>
-  </group>
+  <node pkg="csqmi_exploration" type="exploration_manager" 
+    name="exploration_manager" output="screen">
+    <remap from="vel_cmds"  to="velocity_commands"/>
+    <remap from="map"       to="angle_grid"/>
+    <param name="tf_prefix" value="$(arg tf_prefix)"/>
+  </node>
 
 </launch>
