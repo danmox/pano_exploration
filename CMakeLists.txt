@@ -14,6 +14,7 @@ find_package(catkin REQUIRED COMPONENTS
   nav_msgs
   move_base_msgs
   rosbag
+  panorama
 )
 
 find_package(OpenCV REQUIRED)
@@ -31,6 +32,7 @@ catkin_package(
     nav_msgs
     move_base_msgs
     rosbag
+    panorama
   DEPENDS OpenCV
 )
 

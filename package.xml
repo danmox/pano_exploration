@@ -17,6 +17,7 @@
   <depend>nav_msgs</depend>
   <depend>move_base_msgs</depend>
   <depend>rosbag</depend>
+  <depend>panorama</depend>
 
   <export>
   </export>
