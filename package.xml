@@ -15,6 +15,8 @@
   <depend>std_msgs</depend>
   <depend>geometry_msgs</depend>
   <depend>nav_msgs</depend>
+  <depend>move_base_msgs</depend>
+  <depend>rosbag</depend>
 
   <export>
   </export>

@@ -12,7 +12,11 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   geometry_msgs
   nav_msgs
+  move_base_msgs
+  rosbag
 )
+
+find_package(OpenCV REQUIRED)
 
 catkin_package(
   INCLUDE_DIRS include
@@ -25,6 +29,9 @@ catkin_package(
     std_msgs
     geometry_msgs
     nav_msgs
+    move_base_msgs
+    rosbag
+  DEPENDS OpenCV
 )
 
 include_directories(
@@ -33,4 +40,4 @@ include_directories(
 )
 
 add_executable(exploration_manager src/exploration_manager.cpp)
-target_link_libraries(exploration_manager ${catkin_LIBRARIES})
+target_link_libraries(exploration_manager ${catkin_LIBRARIES} ${OpenCV_LIBS})
