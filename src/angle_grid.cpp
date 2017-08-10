@@ -149,6 +149,18 @@ void AngleGrid::insertScan(const sensor_msgs::LaserScanConstPtr& scan,
     data[cell_pair.first + d*cell_pair.second] += LOG_ODDS_OCCUPIED;
 }
 
+void AngleGrid::insertMap(const OccupancyGridConstPtr& msg)
+{
+  AngleGrid in(msg);
+
+  // ensure current map spans input map
+  if (!inBounds(in.origin) || !inBounds(in.topCorner()))
+    expandMap(in.origin, in.topCorner());
+
+  // update local grid with in_grid data
+  update(&in);
+}
+
 OccupancyGridPtr AngleGrid::createROSMsg()
 {
   static int seq = 0;

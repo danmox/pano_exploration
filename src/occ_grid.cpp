@@ -180,24 +180,6 @@ void OccGrid::insertScan(const sensor_msgs::LaserScanConstPtr& scan,
     data[cell] += LOG_ODDS_OCCUPIED;
 }
 
-template<typename Grid>
-void OccGrid::insertROSGridMsg(const nav_msgs::OccupancyGrid::ConstPtr& msg)
-{
-  Grid in(msg);
-  insertMap(in);
-}
-
-template <typename Grid>
-void OccGrid::insertMap(const Grid& in)
-{
-  // ensure current map spans input map
-  if (!inBounds(in.origin) || !inBounds(in.topCorner()))
-    expandMap(in.origin, in.topCorner());
-
-  // update local grid with in_grid data
-  update(&in);
-}
-
 // update the map from a saved panorama rosbag
 void OccGrid::insertPanorama(const std::string bagfile)
 {

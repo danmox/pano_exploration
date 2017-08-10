@@ -35,10 +35,12 @@ class OccGrid : public GridBase
     virtual void updateRobotCells(const Point);
 
     void expandMap(const Point, const Point);
+    /*
     template<typename Grid>
     void insertROSGridMsg(const nav_msgs::OccupancyGrid::ConstPtr&);
     template<typename Grid>
     void insertMap(const Grid&);
+    */
 
     virtual void insertScan(const sensor_msgs::LaserScanConstPtr&,
         const geometry_msgs::Pose2DConstPtr&);
@@ -48,6 +50,26 @@ class OccGrid : public GridBase
 
     friend std::ostream& operator<<(std::ostream& out, const OccGrid& grid);
 };
+
+/*
+template<typename Grid>
+void OccGrid::insertROSGridMsg(const nav_msgs::OccupancyGrid::ConstPtr& msg)
+{
+  Grid in(msg);
+  insertMap(in);
+}
+
+template <typename Grid>
+void OccGrid::insertMap(const Grid& in)
+{
+  // ensure current map spans input map
+  if (!inBounds(in.origin) || !inBounds(in.topCorner()))
+    expandMap(in.origin, in.topCorner());
+
+  // update local grid with in_grid data
+  update(&in);
+}
+*/
 
 } // namespace grid_mapping
 

@@ -26,6 +26,8 @@ class AngleGrid : public OccGrid
     virtual void update(const AngleGrid*);
     virtual void update(const Point, const int, const int);
 
+    void insertMap(const OccupancyGridConstPtr&);
+
     virtual void updateRobotCells(const Point);
 
     int angleIndex(double) const;
