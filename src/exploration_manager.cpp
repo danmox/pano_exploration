@@ -68,7 +68,6 @@ void moveDoneCB(const actionlib::SimpleClientGoalState& state,
 // main(...)
 //
 
-int pan_count = 0;
 int main(int argc, char** argv)
 {
   /*
@@ -78,10 +77,10 @@ int main(int argc, char** argv)
   ros::init(argc, argv, "csqmi_exploration_manager");
   ros::NodeHandle nh, pnh("~");
 
-  ros::Publisher vel_pub, viz_map_pub, ang_grid_pub;
+  ros::Publisher vel_pub, viz_map_pub, pan_grid_pub;
   vel_pub = nh.advertise<geometry_msgs::Twist>("velocity_commands", 10);
   viz_map_pub = nh.advertise<nav_msgs::OccupancyGrid>("map_2D", 2);
-  ang_grid_pub = nh.advertise<grid_mapping::OccupancyGrid>("angle_grid", 2);
+  pan_grid_pub = nh.advertise<grid_mapping::OccupancyGrid>("angle_grid", 2);
 
   std::string tf_prefix;
   double scan_range_min, scan_range_max;
@@ -123,7 +122,6 @@ int main(int argc, char** argv)
    * localization (for the multi-robot case)
    */
 
-  /*
   ROS_INFO("Running robot in a small circle");
   double v = 0.1; // m/s
   double r = 0.3; // m
@@ -138,87 +136,99 @@ int main(int argc, char** argv)
     vel_pub.publish(turn_cmd);
     loop_rate.sleep();
   }
-  */
 
-  /*
-   * Collect panorama, insert it into the angle grid, and publish the angle grid
-   * and 2D rviz version
-   */
-
-  panorama::PanoramaGoal pan_goal;
-  pan_goal.file_name = tf_prefix + "pan" + std::to_string(++pan_count);
-  pan_ac.sendGoal(pan_goal, &panDoneCB, &panActiveCB, &panFeedbackCB);
-  pan_ac.waitForResult();
-
+  int pan_count = 0;
   grid_mapping::AngleGrid ang_grid(grid_mapping::Point(0.0, 0.0), 0.1, 1, 1);
   ang_grid.range_min = scan_range_min;
   ang_grid.range_max = scan_range_max;
-  if (pan_file.size() != 0)
-    ang_grid.insertPanorama(pan_file);
-  else
-    ROS_ERROR("pan_file is empty");
+  std::vector<cv::Point> pan_px;
+  while (ros::ok()) {
 
-  nav_msgs::OccupancyGridPtr grid_msg = ang_grid.createROSOGMsg();
-  viz_map_pub.publish(grid_msg);
+    /*
+     * Collect panorama, insert it into the angle grid, and publish the angle grid
+     * and 2D rviz version
+     */
 
-  /*
-   * Compute next panorama capture location
-   */
-
-  // read panoaram capture location
-  rosbag::Bag panbag;
-  panbag.open(pan_file, rosbag::bagmode::Read);
-  geometry_msgs::TransformStamped pan_pose;
-  for (auto m : rosbag::View(panbag, rosbag::TopicQuery("panorama_pose"))) {
-    auto msg = m.instantiate<geometry_msgs::TransformStamped>();
-    if (msg) {
-      pan_pose = *msg;
-      break;
+    panorama::PanoramaGoal pan_goal;
+    pan_goal.file_name = tf_prefix + "pan" + std::to_string(++pan_count);
+    pan_ac.sendGoal(pan_goal, &panDoneCB, &panActiveCB, &panFeedbackCB);
+    pan_ac.waitForResult();
+    if (pan_file.size() == 0) {
+      ROS_WARN("Panorama action returned no file. Restarting");
+      --pan_count;
+      continue;
     }
+
+    // create grid of just the panorama and publish
+    grid_mapping::AngleGrid pan_grid(grid_mapping::Point(0.0, 0.0), 0.1, 1, 1);
+    pan_grid.range_min = scan_range_min;
+    pan_grid.range_max = scan_range_max;
+    pan_grid.insertPanorama(pan_file);
+    pan_grid_pub.publish(pan_grid.createROSMsg());
+
+    // insert the pan grid into ang grid and publish for visualization
+    ang_grid.insertPanorama(pan_file);
+    viz_map_pub.publish(ang_grid.createROSOGMsg());
+
+    /*
+     * Compute next panorama capture location
+     */
+
+    // read panoaram capture location
+    rosbag::Bag panbag;
+    panbag.open(pan_file, rosbag::bagmode::Read);
+    geometry_msgs::TransformStamped pan_pose;
+    for (auto m : rosbag::View(panbag, rosbag::TopicQuery("panorama_pose"))) {
+      auto msg = m.instantiate<geometry_msgs::TransformStamped>();
+      if (msg) {
+        pan_pose = *msg;
+        break;
+      }
+    }
+    grid_mapping::Point panorama_position(pan_pose.transform.translation.x,
+        pan_pose.transform.translation.y);
+
+    // compute skeleton
+    cv::Mat skel;
+    computeSkeleton(ang_grid, skel, 2);
+
+    // partition skel
+    cv::Point po;
+    ang_grid.positionToSubscripts(panorama_position, po.y, po.x);
+    pan_px.push_back(po);
+    std::vector<std::vector<cv::Point>> regions = partitionSkeleton(skel, pan_px);
+
+    // find the point of each region with the hightest CSQMI
+    CSQMI objective(DepthCamera(180, scan_range_max, scan_range_min), 0.03);
+    std::vector<cv::Point> max_csqmi_pts;
+    std::vector<double> region_max_csqmi;
+    for (auto& reg : regions) {
+      std::vector<double> reg_mi = objective.csqmi(ang_grid, reg);
+      int idx = std::max_element(reg_mi.begin(), reg_mi.end()) - reg_mi.begin();
+      max_csqmi_pts.push_back(reg[idx]);
+      region_max_csqmi.push_back(reg_mi[idx]);
+    }
+
+    // choose the goal point
+    auto goal_it = std::max_element(region_max_csqmi.begin(), region_max_csqmi.end());
+    cv::Point goal_px = max_csqmi_pts[goal_it - region_max_csqmi.begin()];
+    grid_mapping::Point goal_pt = ang_grid.subscriptsToPosition(goal_px.y, goal_px.x);
+    move_base_msgs::MoveBaseGoal action_goal;
+    action_goal.target_pose.pose.position.x = goal_pt.x;
+    action_goal.target_pose.pose.position.y = goal_pt.y;
+    action_goal.target_pose.header.stamp = ros::Time::now();
+    action_goal.target_pose.header.frame_id = "/" + tf_prefix + "/map";
+    action_goal.target_pose.pose.orientation.w = 1.0;
+
+    /*
+     * Navigate to the goal point
+     */
+
+    move_ac.sendGoal(action_goal, &moveDoneCB, &moveActiveCB, &moveFeedbackCB);
+    move_ac.waitForResult();
+
+    ROS_INFO("Completed %d iteration loop", pan_count);
   }
-  grid_mapping::Point panorama_position(pan_pose.transform.translation.x,
-      pan_pose.transform.translation.y);
-
-  // compute skeleton
-  cv::Mat skel;
-  computeSkeleton(ang_grid, skel, 2);
-
-  // partition skel
-  cv::Point po;
-  ang_grid.positionToSubscripts(panorama_position, po.y, po.x);
-  std::vector<cv::Point> pan_px(1, po);
-  std::vector<std::vector<cv::Point>> regions = partitionSkeleton(skel, pan_px);
-
-  // find the point of each region with the hightest CSQMI
-  CSQMI objective(DepthCamera(180, 6.0, 0.45), 0.03);
-  std::vector<cv::Point> max_csqmi_pts;
-  std::vector<double> region_max_csqmi;
-  for (auto& reg : regions) {
-    std::vector<double> reg_mi = objective.csqmi(ang_grid, reg);
-    int idx = std::max_element(reg_mi.begin(), reg_mi.end()) - reg_mi.begin();
-    max_csqmi_pts.push_back(reg[idx]);
-    region_max_csqmi.push_back(reg_mi[idx]);
-  }
-
-  // choose the goal point
-  auto goal_it = std::max_element(region_max_csqmi.begin(), region_max_csqmi.end());
-  cv::Point goal_px = max_csqmi_pts[goal_it - region_max_csqmi.begin()];
-  grid_mapping::Point goal_pt = ang_grid.subscriptsToPosition(goal_px.y, goal_px.x);
-  move_base_msgs::MoveBaseGoal action_goal;
-  action_goal.target_pose.pose.position.x = goal_pt.x;
-  action_goal.target_pose.pose.position.y = goal_pt.y;
-  action_goal.target_pose.header.stamp = ros::Time::now();
-  action_goal.target_pose.header.frame_id = "/" + tf_prefix + "/map";
-  action_goal.target_pose.pose.orientation.w = 1.0;
-
-  /*
-   * Navigate to the goal point
-   */
-
-  move_ac.sendGoal(action_goal, &moveDoneCB, &moveActiveCB, &moveFeedbackCB);
-  move_ac.waitForResult();
-
-  ros::spin();
 
   return 0;
 }
