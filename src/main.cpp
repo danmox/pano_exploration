@@ -1,7 +1,4 @@
-#include "csqmi_planning/common.h"
-#include "csqmi_planning/thinning.hpp"
-#include "csqmi_planning/partitioning.h"
-#include "csqmi_planning/csqmi.h"
+#include "csqmi_planning/csqmi_planning.h"
 
 #include <rosbag/bag.h>
 #include <rosbag/view.h>
