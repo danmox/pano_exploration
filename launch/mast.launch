@@ -41,6 +41,14 @@
             <arg name="tf_prefix"   value="$(arg tf_prefix)" />
         </include>
 
+        <!-- launch move_base components -->
+        <include ns="move_base" file="$(find robot_io)/launch/move_base_params.launch">
+          <arg name="tf_prefix" value="$(arg tf_prefix)"/>
+        </include>
+        <node pkg="move_base" type="move_base" respawn="false" name="move_base" output="screen">
+          <remap from="cmd_vel" to="velocity_commands"/>
+        </node>
+
         <!-- exploration manager -->
         <include file="$(find csqmi_exploration)/launch/robot.launch">
           <arg name="tf_prefix" value="$(arg tf_prefix)"/>
