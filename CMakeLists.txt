@@ -15,6 +15,9 @@ find_package(catkin REQUIRED COMPONENTS
   move_base_msgs
   rosbag
   panorama
+  pcl_ros
+  pcl_conversions
+  sensor_msgs
 )
 
 find_package(OpenCV REQUIRED)
@@ -30,10 +33,13 @@ catkin_package(
     roscpp
     std_msgs
     geometry_msgs
+    sensor_msgs
     nav_msgs
     move_base_msgs
     rosbag
     panorama
+    pcl_ros
+    pcl_conversions
   DEPENDS OpenCV
 )
 
