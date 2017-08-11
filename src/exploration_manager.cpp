@@ -9,16 +9,26 @@
 #include <geometry_msgs/TransformStamped.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <nav_msgs/OccupancyGrid.h>
+#include <sensor_msgs/PointCloud2.h>
 
 #include <grid_mapping/angle_grid.h>
 #include <csqmi_planning/csqmi_planning.h>
 
 #include <opencv2/opencv.hpp>
+#include <pcl/point_types.h>
+#include <pcl_ros/point_cloud.h>
+#include <pcl_conversions/pcl_conversions.h>
 #include <string.h>
 #include <vector>
 
+using grid_mapping::AngleGrid;
+using sensor_msgs::PointCloud2;
+
 typedef actionlib::SimpleActionClient<panorama::PanoramaAction> PanAC;
 typedef actionlib::SimpleActionClient<move_base_msgs::MoveBaseAction> MoveAC;
+
+typedef std::vector<std::vector<cv::Point>> regions_vec;
+typedef pcl::PointCloud<pcl::PointXYZRGB> CloudXYZRGB;
 
 std::string pan_file;
 
@@ -65,6 +75,57 @@ void moveDoneCB(const actionlib::SimpleClientGoalState& state,
 }
 
 //
+// visualization functions
+//
+
+pcl::PointXYZRGB pixelToPCLPoint(const AngleGrid& grid, cv::Point px, int r,
+    int g, int b)
+{
+  grid_mapping::Point pt = grid.subscriptsToPosition(px.y, px.x);
+  pcl::PointXYZRGB pcl_point(r,g,b);
+  pcl_point.x = pt.x;
+  pcl_point.y = pt.y;
+  return pcl_point;
+}
+
+CloudXYZRGB skeletonToPC(const AngleGrid& grid, const regions_vec& regions,
+    int r, int g, int b)
+{
+  CloudXYZRGB skel_cloud;
+  for (auto& region : regions) {
+    for (auto& px : region) {
+      grid_mapping::Point pt = grid.subscriptsToPosition(px.y, px.x);
+      pcl::PointXYZRGB pcl_point(r,g,b);
+      pcl_point.x = pt.x;
+      pcl_point.y = pt.y;
+      skel_cloud.points.push_back(pcl_point);
+    }
+  }
+  skel_cloud.width = skel_cloud.points.size();
+  skel_cloud.height = 1;
+  skel_cloud.is_dense = false;
+  return skel_cloud;
+}
+
+void addPixelToPC(const AngleGrid& grid, CloudXYZRGB& pc, cv::Point px, int r,
+    int g, int b)
+{
+  grid_mapping::Point pt = grid.subscriptsToPosition(px.y, px.x);
+  pcl::PointXYZRGB pcl_point(r,g,b);
+  pcl_point.x = pt.x;
+  pcl_point.y = pt.y;
+  pc.points.push_back(pcl_point);
+  pc.width++;
+}
+
+void addPixelsToPC(const AngleGrid& grid, CloudXYZRGB& pc,
+    std::vector<cv::Point>& pxs, int r, int g, int b)
+{
+  for (auto& px : pxs)
+    addPixelToPC(grid, pc, px, r, g, b);
+}
+
+//
 // main(...)
 //
 
@@ -77,10 +138,11 @@ int main(int argc, char** argv)
   ros::init(argc, argv, "csqmi_exploration_manager");
   ros::NodeHandle nh, pnh("~");
 
-  ros::Publisher vel_pub, viz_map_pub, pan_grid_pub;
+  ros::Publisher vel_pub, viz_map_pub, pan_grid_pub, skel_pub;
   vel_pub = nh.advertise<geometry_msgs::Twist>("velocity_commands", 10);
   viz_map_pub = nh.advertise<nav_msgs::OccupancyGrid>("map_2D", 2);
   pan_grid_pub = nh.advertise<grid_mapping::OccupancyGrid>("angle_grid", 2);
+  skel_pub = nh.advertise<PointCloud2>("skeleton", 2);
 
   std::string tf_prefix;
   double scan_range_min, scan_range_max;
@@ -138,7 +200,7 @@ int main(int argc, char** argv)
   }
 
   int pan_count = 0;
-  grid_mapping::AngleGrid ang_grid(grid_mapping::Point(0.0, 0.0), 0.1, 1, 1);
+  AngleGrid ang_grid(grid_mapping::Point(0.0, 0.0), 0.1, 1, 1);
   ang_grid.range_min = scan_range_min;
   ang_grid.range_max = scan_range_max;
   std::vector<cv::Point> pan_px;
@@ -160,7 +222,7 @@ int main(int argc, char** argv)
     }
 
     // create grid of just the panorama and publish
-    grid_mapping::AngleGrid pan_grid(grid_mapping::Point(0.0, 0.0), 0.1, 1, 1);
+    AngleGrid pan_grid(grid_mapping::Point(0.0, 0.0), 0.1, 1, 1);
     pan_grid.range_min = scan_range_min;
     pan_grid.range_max = scan_range_max;
     pan_grid.insertPanorama(pan_file);
@@ -196,7 +258,7 @@ int main(int argc, char** argv)
     cv::Point po;
     ang_grid.positionToSubscripts(panorama_position, po.y, po.x);
     pan_px.push_back(po);
-    std::vector<std::vector<cv::Point>> regions = partitionSkeleton(skel, pan_px);
+    regions_vec regions = partitionSkeleton(skel, pan_px);
 
     // find the point of each region with the hightest CSQMI
     CSQMI objective(DepthCamera(180, scan_range_max, scan_range_min), 0.03);
@@ -221,13 +283,27 @@ int main(int argc, char** argv)
     action_goal.target_pose.pose.orientation.w = 1.0;
 
     /*
+     * Publish PointCloud2 of the skeleton, max points, and goal
+     */
+
+    CloudXYZRGB skel_pc = skeletonToPC(ang_grid, regions, 0, 0, 255);
+    addPixelsToPC(ang_grid, skel_pc, pan_px, 255, 0, 0);
+    addPixelsToPC(ang_grid, skel_pc, max_csqmi_pts, 255, 255, 0);
+    addPixelToPC(ang_grid, skel_pc, goal_px, 0, 255, 0);
+
+    PointCloud2 skel_pc_msg;
+    pcl::toROSMsg(skel_pc, skel_pc_msg);
+    skel_pc_msg.header.frame_id = "/" + tf_prefix + "/map";
+    skel_pub.publish(skel_pc_msg);
+
+    /*
      * Navigate to the goal point
      */
 
     move_ac.sendGoal(action_goal, &moveDoneCB, &moveActiveCB, &moveFeedbackCB);
     move_ac.waitForResult();
 
-    ROS_INFO("Completed %d iteration loop", pan_count);
+    ROS_INFO("Completed iteration loop %d", pan_count);
   }
 
   return 0;
