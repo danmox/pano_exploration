@@ -5,10 +5,13 @@
 #include <grid_mapping/angle_grid.h>
 #include <csqmi_planning/csqmi_planning.h>
 #include <geometry_msgs/TransformStamped.h>
+#include <sensor_msgs/PointCloud2.h>
 
 #include <opencv2/opencv.hpp>
 #include <pcl/io/pcd_io.h>
 #include <pcl/point_types.h>
+#include <pcl_ros/point_cloud.h>
+#include <pcl_conversions/pcl_conversions.h>
 
 int main(int argc, char* argv[])
 {
@@ -16,6 +19,11 @@ int main(int argc, char* argv[])
     ROS_FATAL("Please supply a panorama bag file");
     exit(EXIT_FAILURE);
   }
+
+  ros::init(argc, argv, "skeleton_cloud_pub");
+  ros::NodeHandle nh;
+  ros::Publisher pcl_pub;
+  pcl_pub = nh.advertise<sensor_msgs::PointCloud2> ("skel_pcd", 1); 
 
   // read panoaram capture location
   rosbag::Bag panbag;
@@ -67,8 +75,25 @@ int main(int argc, char* argv[])
   skel_cloud.width = skel_cloud.points.size();
   skel_cloud.height = 1;
   skel_cloud.is_dense = false;
-  pcl::io::savePCDFileASCII ("skeleton.pcd", skel_cloud);
-  ROS_INFO("Saved pcl to file");
+  //pcl::io::savePCDFileASCII ("skeleton.pcd", skel_cloud);
+  //ROS_INFO("Saved pcl to file");
+
+  pcl::PointXYZRGB cpt = skel_cloud.points[rand()%(skel_cloud.points.size())];
+  cpt.r = 255;
+  cpt.g = 255;
+  cpt.b = 0;
+  skel_cloud.points.push_back(cpt);
+  skel_cloud.width++;
+ 
+  ROS_INFO("Publishing cload at 1 Hz");
+  ros::Rate loop(1);
+  while(ros::ok()) {
+    sensor_msgs::PointCloud2 ros_cloud;
+    pcl::toROSMsg(skel_cloud, ros_cloud);
+    ros_cloud.header.frame_id = "world";
+    pcl_pub.publish(ros_cloud);
+    loop.sleep();
+  }
 
   return 0;
 }
