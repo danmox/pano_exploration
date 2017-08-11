@@ -10,6 +10,7 @@
 #include <geometry_msgs/PoseStamped.h>
 #include <nav_msgs/OccupancyGrid.h>
 #include <sensor_msgs/PointCloud2.h>
+#include <grid_mapping/OccupancyGrid.h>
 
 #include <grid_mapping/angle_grid.h>
 #include <csqmi_planning/csqmi_planning.h>
@@ -19,6 +20,7 @@
 #include <pcl_ros/point_cloud.h>
 #include <pcl_conversions/pcl_conversions.h>
 #include <string.h>
+#include <sstream>
 #include <vector>
 
 using grid_mapping::AngleGrid;
@@ -30,7 +32,25 @@ typedef actionlib::SimpleActionClient<move_base_msgs::MoveBaseAction> MoveAC;
 typedef std::vector<std::vector<cv::Point>> regions_vec;
 typedef pcl::PointCloud<pcl::PointXYZRGB> CloudXYZRGB;
 
-std::string pan_file;
+struct GoalPair
+{
+  grid_mapping::Point point;
+  int id;
+};
+
+//
+// global variables
+//
+
+static int robot_id;
+static bool received_first_map = false;
+static double robot1_y_offset;
+static std::string tf_prefix;
+static std::string pan_file;
+static AngleGrid ang_grid(grid_mapping::Point(0.0, 0.0), 0.1, 1, 1);
+static ros::Publisher viz_map_pub;
+static std::vector<grid_mapping::Point> pan_locations;
+static std::vector<GoalPair> goals;
 
 //
 // panorama action functions
@@ -126,6 +146,59 @@ void addPixelsToPC(const AngleGrid& grid, CloudXYZRGB& pc,
 }
 
 //
+// coordination callbacks
+//
+
+void mapCB(const grid_mapping::OccupancyGridConstPtr& msg)
+{
+  received_first_map = true;
+
+  grid_mapping::OccupancyGrid new_map = *msg;
+  new_map.origin.y += robot1_y_offset;
+  grid_mapping::OccupancyGridConstPtr new_map_ptr(new grid_mapping::OccupancyGrid(new_map));
+
+  ang_grid.insertMap(new_map_ptr);
+  viz_map_pub.publish(ang_grid.createROSOGMsg());
+}
+
+void goalPoseCB(const geometry_msgs::PoseStampedConstPtr& msg)
+{
+  grid_mapping::Point pt(msg->pose.position.x, msg->pose.position.y);
+  pt.y += robot1_y_offset;
+
+  GoalPair goal_pair;
+  goal_pair.point = pt;
+  goal_pair.id = msg->header.seq;
+  goals.push_back(goal_pair);
+}
+
+void panPoseCB(const geometry_msgs::PoseStampedConstPtr& msg)
+{
+  grid_mapping::Point pt(msg->pose.position.x, msg->pose.position.y);
+  pt.y += robot1_y_offset;
+  pan_locations.push_back(pt);
+
+  int id = msg->header.seq;
+  if (goals.size() > 0) {
+    for (int i = 0; i < goals.size(); ++i) {
+      if (goals[i].id == id) {
+        goals.erase(goals.begin()+i);
+        ROS_INFO("robot%d matched goal and panorama with id: %d", robot_id, id);
+        return;
+      }
+    }
+    ROS_INFO("robot%d found no matching goal for panorama with id: %d", robot_id, id);
+    std::stringstream ss;
+    for (int i = 0; i < goals.size()-1; ++i) {
+      ss << goals[i].id << ", ";
+    }
+    ss << goals.back().id;
+    std::string id_str = ss.str();
+    ROS_INFO("current list of ids: %s", id_str.c_str());
+  }
+}
+
+//
 // main(...)
 //
 
@@ -138,19 +211,42 @@ int main(int argc, char** argv)
   ros::init(argc, argv, "csqmi_exploration_manager");
   ros::NodeHandle nh, pnh("~");
 
-  ros::Publisher vel_pub, viz_map_pub, pan_grid_pub, skel_pub;
+  ros::Publisher vel_pub, pan_grid_pub, skel_pub, pan_pose_pub, goal_pose_pub;
   vel_pub = nh.advertise<geometry_msgs::Twist>("velocity_commands", 10);
   viz_map_pub = nh.advertise<nav_msgs::OccupancyGrid>("map_2D", 2);
   pan_grid_pub = nh.advertise<grid_mapping::OccupancyGrid>("angle_grid", 2);
   skel_pub = nh.advertise<PointCloud2>("skeleton", 2);
+  pan_pose_pub = nh.advertise<geometry_msgs::PoseStamped>("pan_pose", 2);
+  goal_pose_pub = nh.advertise<geometry_msgs::PoseStamped>("goal_pose", 2);
 
-  std::string tf_prefix;
+  int number_of_robots;
   double scan_range_min, scan_range_max;
   if (!pnh.getParam("tf_prefix", tf_prefix) ||
+      !pnh.getParam("robot_id", robot_id) ||
+      !pnh.getParam("robot1_y_offset", robot1_y_offset) ||
+      !nh.getParam("/number_of_robots", number_of_robots) ||
       !nh.getParam("/scan_range_min", scan_range_min) ||
       !nh.getParam("/scan_range_max", scan_range_max)) {
     ROS_FATAL("main(...): failed to read params from server");
     exit(EXIT_FAILURE);
+  }
+
+  if (robot_id == 1)
+    received_first_map = true; 
+
+  // initialize angle grid for planning
+  ang_grid.range_min = scan_range_min;
+  ang_grid.range_max = scan_range_max;
+
+  std::vector<ros::Subscriber> coord_subs;
+  for (int i = 1; i <= number_of_robots; ++i) {
+    if (i == robot_id)
+      continue;
+
+    std::string robot_ns = "/robot" + std::to_string(i);
+    coord_subs.push_back(nh.subscribe(robot_ns + "/angle_grid", 2, &mapCB));
+    coord_subs.push_back(nh.subscribe(robot_ns + "/goal_pose", 2, &goalPoseCB));
+    coord_subs.push_back(nh.subscribe(robot_ns + "/pan_pose", 2, &panPoseCB));
   }
 
   /*
@@ -180,31 +276,22 @@ int main(int argc, char** argv)
   }
 
   /*
-   * Make robot complete a small circle to help initialize SLAM and relative
-   * localization (for the multi-robot case)
+   * exploration loop
    */
 
-  ROS_INFO("Running robot in a small circle");
-  double v = 0.1; // m/s
-  double r = 0.3; // m
-  double w = v / r;
-  geometry_msgs::Twist turn_cmd;
-  turn_cmd.linear.x = v;
-  turn_cmd.angular.z = w;
-  double t = 2.0 * M_PI * r / v;
-  ros::Rate loop_rate(10);
-  ros::Time start = ros::Time::now();
-  while (ros::ok() && (ros::Time::now() - start).toSec() < t + 1.0) {
-    vel_pub.publish(turn_cmd);
-    loop_rate.sleep();
-  }
-
   int pan_count = 0;
-  AngleGrid ang_grid(grid_mapping::Point(0.0, 0.0), 0.1, 1, 1);
-  ang_grid.range_min = scan_range_min;
-  ang_grid.range_max = scan_range_max;
-  std::vector<cv::Point> pan_px;
   while (ros::ok()) {
+
+    /*
+     * If not robot1, wait for robot1 to complete first panorama before starting
+     * to expore
+     */
+
+    if (!received_first_map) {
+      ros::spinOnce();
+      countdown.sleep();
+      ROS_INFO("robot%d is waiting for first map from robot1", robot_id);
+    }
 
     /*
      * Collect panorama, insert it into the angle grid, and publish the angle grid
@@ -243,22 +330,33 @@ int main(int argc, char** argv)
     for (auto m : rosbag::View(panbag, rosbag::TopicQuery("panorama_pose"))) {
       auto msg = m.instantiate<geometry_msgs::TransformStamped>();
       if (msg) {
-        pan_pose = *msg;
+        geometry_msgs::PoseStamped pan_pose;
+        pan_pose.header = msg->header;
+        pan_pose.header.seq = robot_id*10 + pan_count;
+        pan_pose.pose.position.x = msg->transform.translation.x;
+        pan_pose.pose.position.y = msg->transform.translation.y;
+        pan_pose.pose.position.z = 0.0;
+        pan_pose.pose.orientation = msg->transform.rotation;
+        pan_pose_pub.publish(pan_pose);
         break;
       }
     }
     grid_mapping::Point panorama_position(pan_pose.transform.translation.x,
         pan_pose.transform.translation.y);
+    pan_locations.push_back(panorama_position);
 
     // compute skeleton
     cv::Mat skel;
     computeSkeleton(ang_grid, skel, 2);
 
     // partition skel
-    cv::Point po;
-    ang_grid.positionToSubscripts(panorama_position, po.y, po.x);
-    pan_px.push_back(po);
-    regions_vec regions = partitionSkeleton(skel, pan_px);
+    std::vector<cv::Point> pan_pixels;
+    for (auto pt : pan_locations) {
+      cv::Point po;
+      ang_grid.positionToSubscripts(panorama_position, po.y, po.x);
+      pan_pixels.push_back(po);
+    }
+    regions_vec regions = partitionSkeleton(skel, pan_pixels);
 
     // find the point of each region with the hightest CSQMI
     CSQMI objective(DepthCamera(180, scan_range_max, scan_range_min), 0.03);
@@ -272,22 +370,43 @@ int main(int argc, char** argv)
     }
 
     // choose the goal point
-    auto goal_it = std::max_element(region_max_csqmi.begin(), region_max_csqmi.end());
-    cv::Point goal_px = max_csqmi_pts[goal_it - region_max_csqmi.begin()];
-    grid_mapping::Point goal_pt = ang_grid.subscriptsToPosition(goal_px.y, goal_px.x);
+    grid_mapping::Point goal_pt;
+    cv::Point goal_px;
+    while (max_csqmi_pts.size() != 0) {
+      auto goal_it = std::max_element(region_max_csqmi.begin(), region_max_csqmi.end());
+      int idx = goal_it - region_max_csqmi.begin();
+      goal_px = max_csqmi_pts[idx];
+      goal_pt = ang_grid.subscriptsToPosition(goal_px.y, goal_px.x);
+
+      for (auto goal_pair : goals) {
+        if ((goal_pt - goal_pair.point).norm() < 0.5) {
+          region_max_csqmi.erase(region_max_csqmi.begin()+idx);
+          max_csqmi_pts.erase(max_csqmi_pts.begin()+idx);
+          ROS_INFO("robot%d erased goal in proximity to other", robot_id);
+          continue;
+        }
+      }
+    }
+    if (max_csqmi_pts.size() == 0) {
+      ROS_WARN("robot%d failed to find a goal... will wait for new map", robot_id);
+      received_first_map = false;
+      continue;
+    }
     move_base_msgs::MoveBaseGoal action_goal;
     action_goal.target_pose.pose.position.x = goal_pt.x;
     action_goal.target_pose.pose.position.y = goal_pt.y;
     action_goal.target_pose.header.stamp = ros::Time::now();
-    action_goal.target_pose.header.frame_id = "/" + tf_prefix + "/map";
+    action_goal.target_pose.header.frame_id = tf_prefix + "/map";
     action_goal.target_pose.pose.orientation.w = 1.0;
+    action_goal.target_pose.header.seq = robot_id*10 + pan_count + 1;
+    goal_pose_pub.publish(action_goal.target_pose);
 
     /*
      * Publish PointCloud2 of the skeleton, max points, and goal
      */
 
     CloudXYZRGB skel_pc = skeletonToPC(ang_grid, regions, 0, 0, 255);
-    addPixelsToPC(ang_grid, skel_pc, pan_px, 255, 0, 0);
+    addPixelsToPC(ang_grid, skel_pc, pan_pixels, 255, 0, 0);
     addPixelsToPC(ang_grid, skel_pc, max_csqmi_pts, 255, 255, 0);
     addPixelToPC(ang_grid, skel_pc, goal_px, 0, 255, 0);
 
