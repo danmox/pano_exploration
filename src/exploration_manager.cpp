@@ -48,16 +48,15 @@ struct GoalIDPair
 // global variables
 //
 
-static int robot_id;
-static bool received_first_map = false;
-static double robot1_y_offset;
-static string tf_prefix;
-static string pan_file;
-static AngleGrid ang_grid(grid_mapping::Point(0.0, 0.0), 0.1, 1, 1);
-static ros::Publisher viz_map_pub;
-static vector<grid_mapping::Point> pan_locations;
-static vector<GoalIDPair> goals;
-static tf2_ros::Buffer tfBuffer;
+int robot_id;
+volatile bool received_first_map = false;
+string tf_prefix;
+string pan_file;
+AngleGrid ang_grid(grid_mapping::Point(0.0, 0.0), 0.1, 1, 1);
+ros::Publisher viz_map_pub;
+vector<grid_mapping::Point> pan_locations;
+vector<GoalIDPair> goals;
+tf2_ros::Buffer tfBuffer;
 
 //
 // panorama action functions
@@ -341,7 +340,7 @@ int main(int argc, char** argv)
      * to expore
      */
 
-    if (!received_first_map) {
+    while (!received_first_map) {
       ros::spinOnce();
       countdown.sleep();
       ROS_INFO("robot%d is waiting for first map from robot1", robot_id);
