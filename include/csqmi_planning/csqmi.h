@@ -47,6 +47,19 @@ class Gaussian
 
 typedef std::unordered_map<int, double> hit_map;
 
+struct InfoPxPair
+{
+  double csqmi;
+  cv::Point px;
+
+  InfoPxPair(double csqmi_, cv::Point px_) : csqmi(csqmi_), px(px_) {}
+
+  static bool compare(InfoPxPair pp1, InfoPxPair pp2)
+  {
+    return pp1.csqmi < pp2.csqmi;
+  }
+};
+
 class CSQMI
 {
   private:
@@ -65,7 +78,7 @@ class CSQMI
     double beam_csqmi(const std::vector<double>&, const std::vector<int>&,
         hit_map&);
     double csqmi(const grid_mapping::AngleGrid&, const grid_mapping::Point&);
-    std::vector<double> csqmi(const grid_mapping::AngleGrid&, 
+    std::vector<InfoPxPair> csqmi(const grid_mapping::AngleGrid&,
         const std::vector<cv::Point>&);
 };
 

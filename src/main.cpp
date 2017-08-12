@@ -52,20 +52,19 @@ int main(int argc, char** argv)
 
   // find the point of each region with the hightest CSQMI
   CSQMI objective(DepthCamera(180, 6.0, 0.45), 0.03);
-  vector<Point> max_csqmi_pts;
-  vector<double> region_max_csqmi;
+  vector<InfoPxPair> max_csqmi_pxs;
   for (auto& reg : regions) {
-    vector<double> reg_mi = objective.csqmi(ang_grid, reg);
-    int idx = max_element(reg_mi.begin(), reg_mi.end()) - reg_mi.begin();
-    max_csqmi_pts.push_back(reg[idx]);
-    region_max_csqmi.push_back(reg_mi[idx]);
+    vector<InfoPxPair> reg_mi = objective.csqmi(ang_grid, reg);
+    max_csqmi_pxs.push_back(*max_element(reg_mi.begin(), reg_mi.end(),
+        InfoPxPair::compare));
   }
 
-  // choose the goal point
-  auto goal_it = max_element(region_max_csqmi.begin(), region_max_csqmi.end());
-  Point goal_px = max_csqmi_pts[goal_it - region_max_csqmi.begin()];
-  grid_mapping::Point goal = ang_grid.subscriptsToPosition(goal_px.y, goal_px.x);
-  cout << "Goal position is: " << goal << endl;
+  // sort the max region points and choose the goal point
+  std::sort(max_csqmi_pxs.begin(), max_csqmi_pxs.end(), InfoPxPair::compare);
+  InfoPxPair goal_pair = max_csqmi_pxs.back();
+  grid_mapping::Point goal_pose = ang_grid.subscriptsToPosition(goal_pair.px.y,
+      goal_pair.px.x);
+  cout << "Goal position is: " << goal_pose << endl;
 
   //
   // visualization components
@@ -86,16 +85,15 @@ int main(int argc, char** argv)
 
   // compute CSQMI for all free space pixels
   cout << "computing csqmi for " << free_space_pixels.size() <<" points"<< endl;
-  vector<double> mi = objective.csqmi(ang_grid, free_space_pixels);
+  vector<InfoPxPair> fs_csqmi = objective.csqmi(ang_grid, free_space_pixels);
 
   // find max CSQMI value and pixel
-  auto max_it = max_element(mi.begin(), mi.end());
-  Point max_point = free_space_pixels[max_it - mi.begin()];
+  InfoPxPair max_pair = *max_element(fs_csqmi.begin(), fs_csqmi.end(), InfoPxPair::compare);
 
   // create image of CSQMI reward surface
   Mat csqmi_img(ang_grid.h, ang_grid.w, CV_8UC1, Scalar(127));
-  for (int i = 0; i < free_space_pixels.size(); ++i)
-    csqmi_img.at<uchar>(free_space_pixels[i]) = 255*mi[i]/(*max_it); 
+  for (auto csqmi_pair : fs_csqmi)
+    csqmi_img.at<uchar>(csqmi_pair.px) = 255*csqmi_pair.csqmi/(max_pair.csqmi);
 
   // apply heatmap to CSQMI results image
   Mat color_csqmi_img;
@@ -104,8 +102,8 @@ int main(int argc, char** argv)
   // overlay grid map on CSQMI results and mark the point of max CSQMI
   color_grid_img.copyTo(color_csqmi_img, 1-free_space_img);
   color_csqmi_img.setTo(Vec3b(0, 255, 0), skeleton);
-  color_csqmi_img.at<Vec3b>(max_point) = Vec3b(255, 0, 0);
-  cout << "max CSQMI at " << max_point << endl;
+  color_csqmi_img.at<Vec3b>(max_pair.px) = Vec3b(255, 0, 0);
+  cout << "max CSQMI at " << max_pair.px << endl;
 
   // show the panorama capture location
   pans = locatePanoramasOnSkeleton(skeleton, pans);
@@ -113,9 +111,9 @@ int main(int argc, char** argv)
 
   // calculate csqmi over skeleton and mark the maximum point of each region in
   // the CSQMI results image
-  for (auto& max_pt : max_csqmi_pts)
-    color_csqmi_img.at<Vec3b>(max_pt) = Vec3b(255, 0, 0);
-  color_csqmi_img.at<Vec3b>(goal_px) = Vec3b(255, 255, 0);
+  for (auto csqmi_px : max_csqmi_pxs)
+    color_csqmi_img.at<Vec3b>(csqmi_px.px) = Vec3b(255, 0, 0);
+  color_csqmi_img.at<Vec3b>(goal_pair.px) = Vec3b(255, 255, 0);
 
   Mat pixel_density_img;
   pixelDensityGridToMat(px_grid, pixel_density_img);

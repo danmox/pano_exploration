@@ -177,13 +177,15 @@ double CSQMI::csqmi(const grid_mapping::AngleGrid& grid,
   return mi;
 }
 
-std::vector<double> CSQMI::csqmi(const grid_mapping::AngleGrid& grid, 
+std::vector<InfoPxPair> CSQMI::csqmi(const grid_mapping::AngleGrid& grid,
     const std::vector<cv::Point>& pixels)
 {
-  std::vector<double> mi;
-  mi.reserve(pixels.size());
-  for (auto px : pixels)
-    mi.push_back(csqmi(grid, grid.subscriptsToPosition(px.y, px.x)));
+  std::vector<InfoPxPair> csqmi_px;
+  csqmi_px.reserve(pixels.size());
+  for (auto px : pixels) {
+    double info = csqmi(grid, grid.subscriptsToPosition(px.y, px.x));
+    csqmi_px.push_back(InfoPxPair(info, px));
+  }
 
-  return mi;
+  return csqmi_px;
 }
