@@ -19,20 +19,26 @@
 #include <pcl/point_types.h>
 #include <pcl_ros/point_cloud.h>
 #include <pcl_conversions/pcl_conversions.h>
+#include <tf2_ros/transform_listener.h>
+#include <tf/transform_datatypes.h>
+
 #include <string.h>
 #include <sstream>
 #include <vector>
+#include <algorithm>
 
 using grid_mapping::AngleGrid;
 using sensor_msgs::PointCloud2;
+using std::vector;
+using std::string;
 
 typedef actionlib::SimpleActionClient<panorama::PanoramaAction> PanAC;
 typedef actionlib::SimpleActionClient<move_base_msgs::MoveBaseAction> MoveAC;
 
-typedef std::vector<std::vector<cv::Point>> regions_vec;
+typedef vector<vector<cv::Point>> regions_vec;
 typedef pcl::PointCloud<pcl::PointXYZRGB> CloudXYZRGB;
 
-struct GoalPair
+struct GoalIDPair
 {
   grid_mapping::Point point;
   int id;
@@ -45,12 +51,13 @@ struct GoalPair
 static int robot_id;
 static bool received_first_map = false;
 static double robot1_y_offset;
-static std::string tf_prefix;
-static std::string pan_file;
+static string tf_prefix;
+static string pan_file;
 static AngleGrid ang_grid(grid_mapping::Point(0.0, 0.0), 0.1, 1, 1);
 static ros::Publisher viz_map_pub;
-static std::vector<grid_mapping::Point> pan_locations;
-static std::vector<GoalPair> goals;
+static vector<grid_mapping::Point> pan_locations;
+static vector<GoalIDPair> goals;
+static tf2_ros::Buffer tfBuffer;
 
 //
 // panorama action functions
@@ -58,7 +65,7 @@ static std::vector<GoalPair> goals;
 
 void panFeedbackCB(const panorama::PanoramaFeedbackConstPtr& feedback)
 {
-  ROS_INFO("Captured frame %d of 72", feedback->frames_captured);
+  //ROS_INFO("Captured frame %d of 72", feedback->frames_captured);
 }
 
 void panActiveCB()
@@ -139,10 +146,17 @@ void addPixelToPC(const AngleGrid& grid, CloudXYZRGB& pc, cv::Point px, int r,
 }
 
 void addPixelsToPC(const AngleGrid& grid, CloudXYZRGB& pc,
-    std::vector<cv::Point>& pxs, int r, int g, int b)
+    vector<cv::Point>& pxs, int r, int g, int b)
 {
   for (auto& px : pxs)
     addPixelToPC(grid, pc, px, r, g, b);
+}
+
+void addPixelsToPC(const AngleGrid& grid, CloudXYZRGB& pc,
+    vector<InfoPxPair>& info_px_pairs, int r, int g, int b)
+{
+  for (auto& info_px_pair : info_px_pairs)
+    addPixelToPC(grid, pc, info_px_pair.px, r, g, b);
 }
 
 //
@@ -153,12 +167,23 @@ void mapCB(const grid_mapping::OccupancyGridConstPtr& msg)
 {
   received_first_map = true;
 
-  grid_mapping::OccupancyGrid new_map = *msg;
-  new_map.origin.y += robot1_y_offset;
-  grid_mapping::OccupancyGridConstPtr new_map_ptr(new grid_mapping::OccupancyGrid(new_map));
+  try {
+    geometry_msgs::TransformStamped tfs;
+    string my_frame = tf_prefix + "/map";
+    tfs = tfBuffer.lookupTransform(my_frame, msg->header.frame_id, ros::Time(0));
 
-  ang_grid.insertMap(new_map_ptr);
-  viz_map_pub.publish(ang_grid.createROSOGMsg());
+    grid_mapping::Point trans(tfs.transform.translation.x, tfs.transform.translation.y);
+    grid_mapping::OccupancyGrid new_map = *msg;
+    new_map.origin.x += trans.x;
+    new_map.origin.y += trans.y;
+    grid_mapping::OccupancyGridConstPtr new_map_ptr(new grid_mapping::OccupancyGrid(new_map));
+
+    ang_grid.insertMap(new_map_ptr);
+    viz_map_pub.publish(ang_grid.createROSOGMsg());
+  } catch (tf2::TransformException &ex) {
+    ROS_WARN("%s failed to insert map with frame_id %s:\n%s", tf_prefix.c_str(),
+        msg->header.frame_id.c_str(), ex.what());
+  }
 }
 
 void goalPoseCB(const geometry_msgs::PoseStampedConstPtr& msg)
@@ -166,7 +191,7 @@ void goalPoseCB(const geometry_msgs::PoseStampedConstPtr& msg)
   grid_mapping::Point pt(msg->pose.position.x, msg->pose.position.y);
   pt.y += robot1_y_offset;
 
-  GoalPair goal_pair;
+  GoalIDPair goal_pair;
   goal_pair.point = pt;
   goal_pair.id = msg->header.seq;
   goals.push_back(goal_pair);
@@ -193,7 +218,7 @@ void panPoseCB(const geometry_msgs::PoseStampedConstPtr& msg)
       ss << goals[i].id << ", ";
     }
     ss << goals.back().id;
-    std::string id_str = ss.str();
+    string id_str = ss.str();
     ROS_INFO("current list of ids: %s", id_str.c_str());
   }
 }
@@ -210,6 +235,7 @@ int main(int argc, char** argv)
 
   ros::init(argc, argv, "csqmi_exploration_manager");
   ros::NodeHandle nh, pnh("~");
+  tf2_ros::TransformListener tfListener(tfBuffer);
 
   ros::Publisher vel_pub, pan_grid_pub, skel_pub, pan_pose_pub, goal_pose_pub;
   vel_pub = nh.advertise<geometry_msgs::Twist>("velocity_commands", 10);
@@ -223,7 +249,6 @@ int main(int argc, char** argv)
   double scan_range_min, scan_range_max;
   if (!pnh.getParam("tf_prefix", tf_prefix) ||
       !pnh.getParam("robot_id", robot_id) ||
-      !pnh.getParam("robot1_y_offset", robot1_y_offset) ||
       !nh.getParam("/number_of_robots", number_of_robots) ||
       !nh.getParam("/scan_range_min", scan_range_min) ||
       !nh.getParam("/scan_range_max", scan_range_max)) {
@@ -238,12 +263,12 @@ int main(int argc, char** argv)
   ang_grid.range_min = scan_range_min;
   ang_grid.range_max = scan_range_max;
 
-  std::vector<ros::Subscriber> coord_subs;
+  vector<ros::Subscriber> coord_subs;
   for (int i = 1; i <= number_of_robots; ++i) {
     if (i == robot_id)
       continue;
 
-    std::string robot_ns = "/robot" + std::to_string(i);
+    string robot_ns = "/robot" + std::to_string(i);
     coord_subs.push_back(nh.subscribe(robot_ns + "/angle_grid", 2, &mapCB));
     coord_subs.push_back(nh.subscribe(robot_ns + "/goal_pose", 2, &goalPoseCB));
     coord_subs.push_back(nh.subscribe(robot_ns + "/pan_pose", 2, &panPoseCB));
@@ -253,13 +278,13 @@ int main(int argc, char** argv)
    * Initialize action servers for panorama capture and navigation
    */
 
-  std::string pan_server_name = "/" + tf_prefix + "/panorama_action_server";
+  string pan_server_name = "/" + tf_prefix + "/panorama_action_server";
   PanAC pan_ac(pan_server_name.c_str(), true);
   ROS_INFO("Waiting for action server to start: %s", pan_server_name.c_str());
   pan_ac.waitForServer();
   ROS_INFO("%s is ready", pan_server_name.c_str());
 
-  std::string nav_server_name = "/" + tf_prefix + "/move_base";
+  string nav_server_name = "/" + tf_prefix + "/move_base";
   MoveAC move_ac(nav_server_name.c_str(), true);
   ROS_INFO("Waiting for action server to start: %s", nav_server_name.c_str());
   move_ac.waitForServer();
@@ -294,8 +319,8 @@ int main(int argc, char** argv)
     }
 
     /*
-     * Collect panorama, insert it into the angle grid, and publish the angle grid
-     * and 2D rviz version
+     * Collect panorama, insert it into the angle grid, and publish the angle
+     * grid and 2D rviz version
      */
 
     panorama::PanoramaGoal pan_goal;
@@ -322,6 +347,9 @@ int main(int argc, char** argv)
     /*
      * Compute next panorama capture location
      */
+
+    // get the latest information from the team
+    ros::spinOnce();
 
     // read panoaram capture location
     rosbag::Bag panbag;
@@ -350,7 +378,7 @@ int main(int argc, char** argv)
     computeSkeleton(ang_grid, skel, 2);
 
     // partition skel
-    std::vector<cv::Point> pan_pixels;
+    vector<cv::Point> pan_pixels;
     for (auto pt : pan_locations) {
       cv::Point po;
       ang_grid.positionToSubscripts(panorama_position, po.y, po.x);
@@ -360,46 +388,43 @@ int main(int argc, char** argv)
 
     // find the point of each region with the hightest CSQMI
     CSQMI objective(DepthCamera(180, scan_range_max, scan_range_min), 0.03);
-    std::vector<cv::Point> max_csqmi_pts;
-    std::vector<double> region_max_csqmi;
+    vector<InfoPxPair> goal_pairs;
     for (auto& reg : regions) {
-      std::vector<double> reg_mi = objective.csqmi(ang_grid, reg);
-      int idx = std::max_element(reg_mi.begin(), reg_mi.end()) - reg_mi.begin();
-      max_csqmi_pts.push_back(reg[idx]);
-      region_max_csqmi.push_back(reg_mi[idx]);
+      vector<InfoPxPair> reg_csqmi = objective.csqmi(ang_grid, reg);
+      goal_pairs.push_back(*max_element(reg_csqmi.begin(), reg_csqmi.end(),
+            InfoPxPair::compare));
     }
+
+    // sort highest to lowest csqmi
+    std::sort(goal_pairs.begin(), goal_pairs.end(), InfoPxPair::compare);
+    std::reverse(goal_pairs.begin(), goal_pairs.end());
+
+    // get the latest information from the team
+    ros::spinOnce();
 
     // choose the goal point
     grid_mapping::Point goal_pt;
-    cv::Point goal_px;
-    while (max_csqmi_pts.size() != 0) {
-      auto goal_it = std::max_element(region_max_csqmi.begin(), region_max_csqmi.end());
-      int idx = goal_it - region_max_csqmi.begin();
-      goal_px = max_csqmi_pts[idx];
-      goal_pt = ang_grid.subscriptsToPosition(goal_px.y, goal_px.x);
+    auto goal_it = goal_pairs.begin();
+    bool goal_found = false;
+    while (!goal_found && goal_it != goal_pairs.end()) {
+      goal_pt = ang_grid.subscriptsToPosition(goal_it->px.y, goal_it->px.x);
 
+      // make sure agent goals do not collide
       for (auto goal_pair : goals) {
         if ((goal_pt - goal_pair.point).norm() < 0.5) {
-          region_max_csqmi.erase(region_max_csqmi.begin()+idx);
-          max_csqmi_pts.erase(max_csqmi_pts.begin()+idx);
-          ROS_INFO("robot%d erased goal in proximity to other", robot_id);
+          ++goal_it;
           continue;
         }
       }
+      goal_found = true;
     }
-    if (max_csqmi_pts.size() == 0) {
-      ROS_WARN("robot%d failed to find a goal... will wait for new map", robot_id);
+
+    // if no goal was found, wait for a new map and then start planning again
+    if (!goal_found) {
+      ROS_WARN("failed to find a goal... will wait for new map");
       received_first_map = false;
       continue;
     }
-    move_base_msgs::MoveBaseGoal action_goal;
-    action_goal.target_pose.pose.position.x = goal_pt.x;
-    action_goal.target_pose.pose.position.y = goal_pt.y;
-    action_goal.target_pose.header.stamp = ros::Time::now();
-    action_goal.target_pose.header.frame_id = tf_prefix + "/map";
-    action_goal.target_pose.pose.orientation.w = 1.0;
-    action_goal.target_pose.header.seq = robot_id*10 + pan_count + 1;
-    goal_pose_pub.publish(action_goal.target_pose);
 
     /*
      * Publish PointCloud2 of the skeleton, max points, and goal
@@ -407,8 +432,8 @@ int main(int argc, char** argv)
 
     CloudXYZRGB skel_pc = skeletonToPC(ang_grid, regions, 0, 0, 255);
     addPixelsToPC(ang_grid, skel_pc, pan_pixels, 255, 0, 0);
-    addPixelsToPC(ang_grid, skel_pc, max_csqmi_pts, 255, 255, 0);
-    addPixelToPC(ang_grid, skel_pc, goal_px, 0, 255, 0);
+    addPixelsToPC(ang_grid, skel_pc, goal_pairs, 255, 255, 0);
+    addPixelToPC(ang_grid, skel_pc, goal_it->px, 0, 255, 0);
 
     PointCloud2 skel_pc_msg;
     pcl::toROSMsg(skel_pc, skel_pc_msg);
@@ -419,10 +444,22 @@ int main(int argc, char** argv)
      * Navigate to the goal point
      */
 
+    move_base_msgs::MoveBaseGoal action_goal;
+    action_goal.target_pose.pose.position.x = goal_pt.x;
+    action_goal.target_pose.pose.position.y = goal_pt.y;
+    action_goal.target_pose.header.stamp = ros::Time::now();
+    action_goal.target_pose.header.frame_id = tf_prefix + "/map";
+    action_goal.target_pose.pose.orientation.w = 1.0;
+    action_goal.target_pose.header.seq = robot_id*10 + pan_count + 1;
+    goal_pose_pub.publish(action_goal.target_pose);
+
     move_ac.sendGoal(action_goal, &moveDoneCB, &moveActiveCB, &moveFeedbackCB);
     move_ac.waitForResult();
 
     ROS_INFO("Completed iteration loop %d", pan_count);
+
+    // get the latest information from the team
+    ros::spinOnce();
   }
 
   return 0;
