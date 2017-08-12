@@ -163,63 +163,92 @@ void addPixelsToPC(const AngleGrid& grid, CloudXYZRGB& pc,
 // coordination callbacks
 //
 
+bool fetchTransform(string source_frame, geometry_msgs::TransformStamped& trans)
+{
+  bool res = false;
+  try {
+    string my_frame = tf_prefix + "/map";
+    trans = tfBuffer.lookupTransform(my_frame, source_frame, ros::Time(0));
+    res = true;
+  } catch (tf2::TransformException &ex) {
+    ROS_WARN("fetchTransform(...): %s failed to fetch transform:\n%s",
+        tf_prefix.c_str(), ex.what());
+  }
+  return res;
+}
+
 void mapCB(const grid_mapping::OccupancyGridConstPtr& msg)
 {
   received_first_map = true;
 
-  try {
-    geometry_msgs::TransformStamped tfs;
-    string my_frame = tf_prefix + "/map";
-    tfs = tfBuffer.lookupTransform(my_frame, msg->header.frame_id, ros::Time(0));
+  geometry_msgs::TransformStamped tfs;
+  if (fetchTransform(msg->header.frame_id, tfs)) {
+    grid_mapping::OccupancyGrid trans_map = *msg;
+    trans_map.origin.x += tfs.transform.translation.x;
+    trans_map.origin.y += tfs.transform.translation.y;
+    grid_mapping::OccupancyGridConstPtr trans_map_ptr;
+    trans_map_ptr.reset(new grid_mapping::OccupancyGrid(trans_map));
 
-    grid_mapping::Point trans(tfs.transform.translation.x, tfs.transform.translation.y);
-    grid_mapping::OccupancyGrid new_map = *msg;
-    new_map.origin.x += trans.x;
-    new_map.origin.y += trans.y;
-    grid_mapping::OccupancyGridConstPtr new_map_ptr(new grid_mapping::OccupancyGrid(new_map));
-
-    ang_grid.insertMap(new_map_ptr);
+    ang_grid.insertMap(trans_map_ptr);
+    ROS_INFO("%s inserted map with frame_id %s", tf_prefix.c_str(),
+        msg->header.frame_id.c_str());
     viz_map_pub.publish(ang_grid.createROSOGMsg());
-  } catch (tf2::TransformException &ex) {
-    ROS_WARN("%s failed to insert map with frame_id %s:\n%s", tf_prefix.c_str(),
-        msg->header.frame_id.c_str(), ex.what());
+  } else {
+    ROS_WARN("%s failed to insert map with frame_id %s", tf_prefix.c_str(),
+        msg->header.frame_id.c_str());
   }
 }
 
 void goalPoseCB(const geometry_msgs::PoseStampedConstPtr& msg)
 {
-  grid_mapping::Point pt(msg->pose.position.x, msg->pose.position.y);
-  pt.y += robot1_y_offset;
+  geometry_msgs::TransformStamped tfs;
+  if (fetchTransform(msg->header.frame_id, tfs)) {
+    grid_mapping::Point pt(msg->pose.position.x, msg->pose.position.y);
+    pt.x += tfs.transform.translation.x;
+    pt.y += tfs.transform.translation.y;
 
-  GoalIDPair goal_pair;
-  goal_pair.point = pt;
-  goal_pair.id = msg->header.seq;
-  goals.push_back(goal_pair);
+    GoalIDPair goal_pair;
+    goal_pair.point = pt;
+    goal_pair.id = msg->header.seq;
+    goals.push_back(goal_pair);
+  } else {
+    ROS_WARN("%s failed to add goal with ID %d to active goal list",
+        tf_prefix.c_str(), msg->header.seq);
+  }
 }
 
 void panPoseCB(const geometry_msgs::PoseStampedConstPtr& msg)
 {
-  grid_mapping::Point pt(msg->pose.position.x, msg->pose.position.y);
-  pt.y += robot1_y_offset;
-  pan_locations.push_back(pt);
+  geometry_msgs::TransformStamped tfs;
+  if (fetchTransform(msg->header.frame_id, tfs)) {
+    grid_mapping::Point pt(msg->pose.position.x, msg->pose.position.y);
+    pt.x += tfs.transform.translation.x;
+    pt.y += tfs.transform.translation.y;
+    pan_locations.push_back(pt);
 
-  int id = msg->header.seq;
-  if (goals.size() > 0) {
+    if (goals.size() == 0)
+      return;
+
+    int id = msg->header.seq;
     for (int i = 0; i < goals.size(); ++i) {
       if (goals[i].id == id) {
         goals.erase(goals.begin()+i);
-        ROS_INFO("robot%d matched goal and panorama with id: %d", robot_id, id);
+        ROS_INFO("%s matched goal and panorama with id: %d", tf_prefix.c_str(), id);
         return;
       }
     }
-    ROS_INFO("robot%d found no matching goal for panorama with id: %d", robot_id, id);
+
+    ROS_INFO("%s found no matching goal for panorama with id: %d", tf_prefix.c_str(), id);
     std::stringstream ss;
     for (int i = 0; i < goals.size()-1; ++i) {
       ss << goals[i].id << ", ";
     }
     ss << goals.back().id;
     string id_str = ss.str();
-    ROS_INFO("current list of ids: %s", id_str.c_str());
+    ROS_INFO("current list of ids is: %s", id_str.c_str());
+  } else {
+    ROS_INFO("%s failed to add panorama with ID %d to captured panorama list",
+        tf_prefix.c_str(), msg->header.seq);
   }
 }
 
