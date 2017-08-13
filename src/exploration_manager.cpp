@@ -50,7 +50,8 @@ struct GoalIDPair
 
 int robot_id;
 int pan_count = 0;
-volatile bool received_new_map = false;
+volatile int shared_goals_count = 0;
+volatile bool received_new_map = false, move_base_succeeded = true;
 string tf_prefix;
 string pan_file;
 AngleGrid ang_grid(grid_mapping::Point(0.0, 0.0), 0.1, 1, 1);
@@ -68,18 +69,19 @@ std::shared_ptr<MoveAC> move_ac;
 
 void panFeedbackCB(const panorama::PanoramaFeedbackConstPtr& feedback)
 {
-  ROS_INFO("Captured frame %d of 72", feedback->frames_captured);
+  ROS_INFO("panFeedbackCB(...): Captured frame %d of 72",
+      feedback->frames_captured);
 }
 
 void panActiveCB()
 {
-  ROS_INFO("Capturing panorama...");
+  ROS_INFO("panActiveCB(): Capturing panorama...");
 }
 
 void panDoneCB(const actionlib::SimpleClientGoalState& state,
     const panorama::PanoramaResultConstPtr& result)
 {
-  ROS_INFO("Panorama completed with %s and saved to %s", 
+  ROS_INFO("panDoneCB(...): Panorama completed with %s and saved to %s",
       state.toString().c_str(), result->full_file_name.c_str());
   if (state.toString().compare("SUCCEEDED") == 0)
     pan_file = result->full_file_name;
@@ -95,13 +97,17 @@ void moveFeedbackCB(const move_base_msgs::MoveBaseFeedbackConstPtr& msg)
 
 void moveActiveCB()
 {
-  ROS_INFO("Navigating to goal...");
+  ROS_INFO("moveActionCB(): Navigating to goal...");
 }
 
 void moveDoneCB(const actionlib::SimpleClientGoalState& state,
     const move_base_msgs::MoveBaseResultConstPtr& result)
 {
-  ROS_INFO("Navigation completed with status: %s", state.toString().c_str());
+  ROS_INFO("moveDoneCB(...): Navigation completed with status: %s",
+      state.toString().c_str());
+  if (state != actionlib::SimpleClientGoalState::StateEnum::SUCCEEDED) {
+    move_base_succeeded = false;
+  }
 }
 
 //
@@ -193,17 +199,19 @@ void mapCB(const grid_mapping::OccupancyGridConstPtr& msg)
     trans_map_ptr.reset(new grid_mapping::OccupancyGrid(trans_map));
 
     ang_grid.insertMap(trans_map_ptr);
-    ROS_INFO("%s inserted map with frame_id %s", tf_prefix.c_str(),
+    ROS_INFO("mapCB(...): %s inserted map with frame_id %s", tf_prefix.c_str(),
         msg->header.frame_id.c_str());
     viz_map_pub.publish(ang_grid.createROSOGMsg());
   } else {
-    ROS_WARN("%s failed to insert map with frame_id %s", tf_prefix.c_str(),
-        msg->header.frame_id.c_str());
+    ROS_WARN("mapCB(...): %s failed to insert map with frame_id %s",
+        tf_prefix.c_str(), msg->header.frame_id.c_str());
   }
 }
 
 void goalPoseCB(const geometry_msgs::PoseStampedConstPtr& msg)
 {
+  ++shared_goals_count;
+
   geometry_msgs::TransformStamped tfs;
   if (fetchTransform(msg->header.frame_id, tfs)) {
     grid_mapping::Point pt(msg->pose.position.x, msg->pose.position.y);
@@ -214,9 +222,12 @@ void goalPoseCB(const geometry_msgs::PoseStampedConstPtr& msg)
     goal_pair.point = pt;
     goal_pair.id = msg->header.seq;
     goals.push_back(goal_pair);
+    ROS_INFO("goalPoseCB(...): %s added goal pose with id %d to goals",
+        tf_prefix.c_str(), goal_pair.id);
   } else {
-    ROS_WARN("%s failed to add goal with ID %d to active goal list",
+    ROS_WARN("goalPoseCB(...): %s failed to add goal pose with ID %d to goals",
         tf_prefix.c_str(), msg->header.seq);
+    return;
   }
 }
 
@@ -229,7 +240,8 @@ void panPoseCB(const geometry_msgs::PoseStampedConstPtr& msg)
     pt.x += tfs.transform.translation.x;
     pt.y += tfs.transform.translation.y;
     pan_locations.push_back(pt);
-    ROS_INFO("%s added goal with id %d to pan_locations", tf_prefix.c_str(), id);
+    ROS_INFO("panPoseCB(...): %s added panorama pose with id %d to "
+        "pan_locations", tf_prefix.c_str(), id);
 
     if (goals.size() == 0)
       return;
@@ -237,22 +249,22 @@ void panPoseCB(const geometry_msgs::PoseStampedConstPtr& msg)
     for (int i = 0; i < goals.size(); ++i) {
       if (goals[i].id == id) {
         goals.erase(goals.begin()+i);
-        ROS_INFO("%s matched goal and panorama with id: %d", tf_prefix.c_str(), id);
+        ROS_INFO("panPoseCB(...): %s matched goal and panorama with id: %d",
+            tf_prefix.c_str(), id);
         return;
       }
     }
 
-    ROS_INFO("%s found no matching goal for panorama with id: %d", tf_prefix.c_str(), id);
+    ROS_INFO("panPoseCB(...): %s found no matching goal for panorama with id: "
+        "%d", tf_prefix.c_str(), id);
     std::stringstream ss;
-    for (int i = 0; i < goals.size()-1; ++i) {
-      ss << goals[i].id << ", ";
-    }
+    for (int i = 0; i < goals.size()-1; ++i) { ss << goals[i].id << ", "; }
     ss << goals.back().id;
     string id_str = ss.str();
-    ROS_INFO("current list of ids is: %s", id_str.c_str());
+    ROS_INFO("panPoseCB(...): current list of ids is: %s", id_str.c_str());
   } else {
-    ROS_INFO("%s failed to add panorama with ID %d to captured panorama list",
-        tf_prefix.c_str(), msg->header.seq);
+    ROS_INFO("panPoseCB(...): %s failed to add panorama with ID %d to captured "
+        "panorama list", tf_prefix.c_str(), msg->header.seq);
   }
 }
 
@@ -272,7 +284,7 @@ bool capturePanorama()
   pan_ac->sendGoal(pan_goal, &panDoneCB, &panActiveCB, &panFeedbackCB);
   pan_ac->waitForResult();
   if (pan_file.size() == 0) {
-    ROS_WARN("Panorama action returned no file");
+    ROS_WARN("capturePanorama(): Panorama action returned no file");
     --pan_count;
     return false;
   }
@@ -302,6 +314,8 @@ bool capturePanorama()
       pan_pose.pose.position.z = 0.0;
       pan_pose.pose.orientation = msg->transform.rotation;
       pan_pose_pub.publish(pan_pose);
+      ROS_INFO("capturePanorama(): %s published panorama pose with id %d",
+          tf_prefix.c_str(), pan_pose.header.seq);
       break;
     }
   }
@@ -369,15 +383,17 @@ int main(int argc, char** argv)
 
   string pan_server_name = "/" + tf_prefix + "/panorama_action_server";
   pan_ac.reset(new PanAC(pan_server_name.c_str(), true));
-  ROS_INFO("Waiting for action server to start: %s", pan_server_name.c_str());
+  ROS_INFO("main(...): Waiting for action server to start: %s",
+      pan_server_name.c_str());
   pan_ac->waitForServer();
-  ROS_INFO("%s is ready", pan_server_name.c_str());
+  ROS_INFO("main(...): %s is ready", pan_server_name.c_str());
 
   string nav_server_name = "/" + tf_prefix + "/move_base";
   move_ac.reset(new MoveAC(nav_server_name.c_str(), true));
-  ROS_INFO("Waiting for action server to start: %s", nav_server_name.c_str());
+  ROS_INFO("main(...): Waiting for action server to start: %s",
+      nav_server_name.c_str());
   move_ac->waitForServer();
-  ROS_INFO("%s is ready", nav_server_name.c_str());
+  ROS_INFO("main(...): %s is ready", nav_server_name.c_str());
 
   /*
    * Give the other components/robots time to load before staring exploration
@@ -385,22 +401,23 @@ int main(int argc, char** argv)
 
   ros::Rate countdown(1);
   for (int i = 5; i > 0; --i) {
-    ROS_INFO("Beginning exploration in %d seconds...", i);
+    ROS_INFO("main(...): Beginning exploration in %d seconds...", i);
     countdown.sleep();
   }
 
   /*
    * if this robot is a leader, capture an initial panorama before beginning the
-   * exploration loop
+   * exploration loop; otherwise, wait for goals in robot_id order to abate a
+   * race condition between the non leader members of the team
    */
 
   if (leader) {
     capturePanorama();
   } else {
-    while (!received_new_map) {
+    while (shared_goals_count <= robot_id-1) {
+      countdown.sleep(); countdown.sleep();
+      ROS_INFO("main(...): robot%d is waiting for an initial map", robot_id);
       ros::spinOnce();
-      countdown.sleep();
-      ROS_INFO("robot%d is waiting for an initial map", robot_id);
     }
   }
 
@@ -468,12 +485,12 @@ int main(int argc, char** argv)
 
     // if no goal was found, wait for a new map and then start planning again
     if (!goal_found) {
-      ROS_WARN("failed to find a goal... will wait for new map");
+      ROS_WARN("main(...): failed to find a goal... will wait for new map");
       received_new_map = false;
       while (!received_new_map) {
-        ros::spinOnce();
         countdown.sleep();
-        ROS_INFO("robot%d is waiting for a new map", robot_id);
+        ROS_INFO("main(...): robot%d is waiting for a new map", robot_id);
+        ros::spinOnce();
       }
       continue;
     }
@@ -497,16 +514,20 @@ int main(int argc, char** argv)
      */
 
     move_base_msgs::MoveBaseGoal action_goal;
-    action_goal.target_pose.pose.position.x = goal_pt.x;
-    action_goal.target_pose.pose.position.y = goal_pt.y;
     action_goal.target_pose.header.stamp = ros::Time::now();
     action_goal.target_pose.header.frame_id = tf_prefix + "/map";
-    action_goal.target_pose.pose.orientation.w = 1.0;
     action_goal.target_pose.header.seq = robot_id*10 + pan_count + 1;
+    action_goal.target_pose.pose.position.x = goal_pt.x;
+    action_goal.target_pose.pose.position.y = goal_pt.y;
+    action_goal.target_pose.pose.orientation.w = 1.0;
     goal_pose_pub.publish(action_goal.target_pose);
 
     move_ac->sendGoal(action_goal, &moveDoneCB, &moveActiveCB, &moveFeedbackCB);
     move_ac->waitForResult();
+    if (!move_base_succeeded) {
+      ROS_INFO("main(...): Navigation failed. Restarting planning process.");
+      continue;
+    }
 
     /*
      * Collect panorama, insert it into the angle grid, and publish the angle
@@ -515,7 +536,7 @@ int main(int argc, char** argv)
 
     capturePanorama();
 
-    ROS_INFO("Completed iteration loop %d", pan_count);
+    ROS_INFO("main(...): Completed iteration loop %d", pan_count);
   }
 
   return 0;
