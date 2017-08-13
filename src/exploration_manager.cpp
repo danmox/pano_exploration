@@ -61,7 +61,6 @@ tf2_ros::Buffer tfBuffer;
 double scan_range_min, scan_range_max;
 std::shared_ptr<PanAC> pan_ac;
 std::shared_ptr<MoveAC> move_ac;
-grid_mapping::Point panorama_position;
 
 //
 // panorama action functions
@@ -223,17 +222,18 @@ void goalPoseCB(const geometry_msgs::PoseStampedConstPtr& msg)
 
 void panPoseCB(const geometry_msgs::PoseStampedConstPtr& msg)
 {
+  int id = msg->header.seq;
   geometry_msgs::TransformStamped tfs;
   if (fetchTransform(msg->header.frame_id, tfs)) {
     grid_mapping::Point pt(msg->pose.position.x, msg->pose.position.y);
     pt.x += tfs.transform.translation.x;
     pt.y += tfs.transform.translation.y;
     pan_locations.push_back(pt);
+    ROS_INFO("%s added goal with id %d to pan_locations", tf_prefix.c_str(), id);
 
     if (goals.size() == 0)
       return;
 
-    int id = msg->header.seq;
     for (int i = 0; i < goals.size(); ++i) {
       if (goals[i].id == id) {
         goals.erase(goals.begin()+i);
@@ -291,11 +291,10 @@ bool capturePanorama()
   // read panoaram capture location
   rosbag::Bag panbag;
   panbag.open(pan_file, rosbag::bagmode::Read);
-  geometry_msgs::TransformStamped pan_pose;
+  geometry_msgs::PoseStamped pan_pose;
   for (auto m : rosbag::View(panbag, rosbag::TopicQuery("panorama_pose"))) {
     auto msg = m.instantiate<geometry_msgs::TransformStamped>();
     if (msg) {
-      geometry_msgs::PoseStamped pan_pose;
       pan_pose.header = msg->header;
       pan_pose.header.seq = robot_id*10 + pan_count;
       pan_pose.pose.position.x = msg->transform.translation.x;
@@ -306,8 +305,10 @@ bool capturePanorama()
       break;
     }
   }
-  panorama_position.x = pan_pose.transform.translation.x;
-  panorama_position.y = pan_pose.transform.translation.y;
+  panbag.close();
+  grid_mapping::Point panorama_position;
+  panorama_position.x = pan_pose.pose.position.x;
+  panorama_position.y = pan_pose.pose.position.y;
   pan_locations.push_back(panorama_position);
 
   return true;
@@ -383,7 +384,7 @@ int main(int argc, char** argv)
    */
 
   ros::Rate countdown(1);
-  for (int i = 10; i > 0; --i) {
+  for (int i = 5; i > 0; --i) {
     ROS_INFO("Beginning exploration in %d seconds...", i);
     countdown.sleep();
   }
@@ -427,7 +428,7 @@ int main(int argc, char** argv)
     vector<cv::Point> pan_pixels;
     for (auto pt : pan_locations) {
       cv::Point po;
-      ang_grid.positionToSubscripts(panorama_position, po.y, po.x);
+      ang_grid.positionToSubscripts(pt, po.y, po.x);
       pan_pixels.push_back(po);
     }
     regions_vec regions = partitionSkeleton(skel, pan_pixels);
