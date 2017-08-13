@@ -361,6 +361,7 @@ int main(int argc, char** argv)
     ROS_FATAL("main(...): failed to read params from server");
     exit(EXIT_FAILURE);
   }
+  ang_grid.frame_id = tf_prefix + "/map";
 
   // initialize angle grid for planning
   ang_grid.range_min = scan_range_min;
@@ -416,7 +417,8 @@ int main(int argc, char** argv)
   } else {
     while (shared_goals_count <= robot_id-1) {
       countdown.sleep(); countdown.sleep();
-      ROS_INFO("main(...): robot%d is waiting for an initial map", robot_id);
+      ROS_INFO("main(...): robot%d is waiting for %d goals to be received "
+          "before beginning exploration", robot_id, robot_id-1);
       ros::spinOnce();
     }
   }
