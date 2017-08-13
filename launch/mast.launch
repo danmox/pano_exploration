@@ -5,7 +5,7 @@
     <arg name="radio_id"/>
     <arg name="tf_prefix"/>
     <arg name="robot_id"/>
-    <arg name="robot1_y_offset"/>
+    <arg name="leader"/>
 
     <group ns="$(arg tf_prefix)">
 
@@ -63,7 +63,7 @@
         <include file="$(find csqmi_exploration)/launch/robot.launch">
           <arg name="tf_prefix" value="$(arg tf_prefix)"/>
           <arg name="robot_id" value="$(arg robot_id)"/>
-          <arg name="robot1_y_offset" value="$(arg robot1_y_offset)"/>
+          <arg name="leader" value="$(arg leader)"/>
         </include>
 
     </group>

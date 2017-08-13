@@ -2,13 +2,13 @@
 
   <arg name="tf_prefix"/>
   <arg name="robot_id"/>
-  <arg name="robot1_y_offset"/>
+  <arg name="leader"/>
 
   <node pkg="csqmi_exploration" type="exploration_manager" 
     name="exploration_manager" output="screen">
     <param name="tf_prefix" value="$(arg tf_prefix)"/>
     <param name="robot_id" value="$(arg robot_id)"/>
-    <param name="robot1_y_offset" value="$(arg robot1_y_offset)"/>
+    <param name="leader" value="$(arg leader)"/>
   </node>
 
 </launch>
