@@ -18,10 +18,21 @@ find_package(catkin REQUIRED COMPONENTS
   pcl_ros
   pcl_conversions
   sensor_msgs
+  message_generation
 )
 
 find_package(OpenCV REQUIRED)
 find_package(PCL REQUIRED)
+
+add_message_files(
+  FILES
+    PanGoal.msg
+)
+
+generate_messages(
+  DEPENDENCIES
+    std_msgs
+)
 
 catkin_package(
   INCLUDE_DIRS include
@@ -40,6 +51,7 @@ catkin_package(
     panorama
     pcl_ros
     pcl_conversions
+    message_runtime
   DEPENDS OpenCV
 )
 
@@ -50,6 +62,7 @@ include_directories(
 )
 
 add_executable(exploration_manager src/exploration_manager.cpp)
+add_dependencies(exploration_manager ${PROJECT_NAME}_generate_messages_cpp)
 target_link_libraries(exploration_manager ${catkin_LIBRARIES} ${OpenCV_LIBS})
 
 add_executable(skel_pointcloud src/pcl_visualization_test.cpp)

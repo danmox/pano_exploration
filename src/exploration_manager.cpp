@@ -7,10 +7,10 @@
 #include <move_base_msgs/MoveBaseAction.h>
 #include <geometry_msgs/Twist.h>
 #include <geometry_msgs/TransformStamped.h>
-#include <geometry_msgs/PoseStamped.h>
 #include <nav_msgs/OccupancyGrid.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <grid_mapping/OccupancyGrid.h>
+#include <csqmi_exploration/PanGoal.h>
 
 #include <grid_mapping/angle_grid.h>
 #include <csqmi_planning/csqmi_planning.h>
@@ -208,35 +208,35 @@ void mapCB(const grid_mapping::OccupancyGridConstPtr& msg)
   }
 }
 
-void goalPoseCB(const geometry_msgs::PoseStampedConstPtr& msg)
+void goalPoseCB(const csqmi_exploration::PanGoalConstPtr& msg)
 {
   ++shared_goals_count;
 
   geometry_msgs::TransformStamped tfs;
-  if (fetchTransform(msg->header.frame_id, tfs)) {
-    grid_mapping::Point pt(msg->pose.position.x, msg->pose.position.y);
+  if (fetchTransform(msg->frame_id, tfs)) {
+    grid_mapping::Point pt(msg->x, msg->y);
     pt.x += tfs.transform.translation.x;
     pt.y += tfs.transform.translation.y;
 
     GoalIDPair goal_pair;
     goal_pair.point = pt;
-    goal_pair.id = msg->header.seq;
+    goal_pair.id = msg->goal_id;
     goals.push_back(goal_pair);
     ROS_INFO("goalPoseCB(...): %s added goal pose with id %d to goals",
         tf_prefix.c_str(), goal_pair.id);
   } else {
     ROS_WARN("goalPoseCB(...): %s failed to add goal pose with ID %d to goals",
-        tf_prefix.c_str(), msg->header.seq);
+        tf_prefix.c_str(), msg->goal_id);
     return;
   }
 }
 
-void panPoseCB(const geometry_msgs::PoseStampedConstPtr& msg)
+void panPoseCB(const csqmi_exploration::PanGoalConstPtr& msg)
 {
-  int id = msg->header.seq;
+  int id = msg->goal_id;
   geometry_msgs::TransformStamped tfs;
-  if (fetchTransform(msg->header.frame_id, tfs)) {
-    grid_mapping::Point pt(msg->pose.position.x, msg->pose.position.y);
+  if (fetchTransform(msg->frame_id, tfs)) {
+    grid_mapping::Point pt(msg->x, msg->y);
     pt.x += tfs.transform.translation.x;
     pt.y += tfs.transform.translation.y;
     pan_locations.push_back(pt);
@@ -249,8 +249,8 @@ void panPoseCB(const geometry_msgs::PoseStampedConstPtr& msg)
     for (int i = 0; i < goals.size(); ++i) {
       if (goals[i].id == id) {
         goals.erase(goals.begin()+i);
-        ROS_INFO("panPoseCB(...): %s matched goal and panorama with id: %d",
-            tf_prefix.c_str(), id);
+        ROS_INFO("panPoseCB(...): %s found goal and panorama with matching id: "
+            "%d", tf_prefix.c_str(), id);
         return;
       }
     }
@@ -261,10 +261,10 @@ void panPoseCB(const geometry_msgs::PoseStampedConstPtr& msg)
     for (int i = 0; i < goals.size()-1; ++i) { ss << goals[i].id << ", "; }
     ss << goals.back().id;
     string id_str = ss.str();
-    ROS_INFO("panPoseCB(...): current list of ids is: %s", id_str.c_str());
+    ROS_INFO("panPoseCB(...): current list of goal ids is: %s", id_str.c_str());
   } else {
     ROS_INFO("panPoseCB(...): %s failed to add panorama with ID %d to captured "
-        "panorama list", tf_prefix.c_str(), msg->header.seq);
+        "panorama list", tf_prefix.c_str(), msg->goal_id);
   }
 }
 
@@ -303,26 +303,24 @@ bool capturePanorama()
   // read panoaram capture location
   rosbag::Bag panbag;
   panbag.open(pan_file, rosbag::bagmode::Read);
-  geometry_msgs::PoseStamped pan_pose;
+  csqmi_exploration::PanGoal pan_pose_msg;
   for (auto m : rosbag::View(panbag, rosbag::TopicQuery("panorama_pose"))) {
     auto msg = m.instantiate<geometry_msgs::TransformStamped>();
     if (msg) {
-      pan_pose.header = msg->header;
-      pan_pose.header.seq = robot_id*10 + pan_count;
-      pan_pose.pose.position.x = msg->transform.translation.x;
-      pan_pose.pose.position.y = msg->transform.translation.y;
-      pan_pose.pose.position.z = 0.0;
-      pan_pose.pose.orientation = msg->transform.rotation;
-      pan_pose_pub.publish(pan_pose);
+      pan_pose_msg.frame_id = msg->header.frame_id;
+      pan_pose_msg.goal_id = robot_id*100 + pan_count;
+      pan_pose_msg.x = msg->transform.translation.x;
+      pan_pose_msg.y = msg->transform.translation.y;
+      pan_pose_pub.publish(pan_pose_msg);
       ROS_INFO("capturePanorama(): %s published panorama pose with id %d",
-          tf_prefix.c_str(), pan_pose.header.seq);
+          tf_prefix.c_str(), pan_pose_msg.goal_id);
       break;
     }
   }
   panbag.close();
   grid_mapping::Point panorama_position;
-  panorama_position.x = pan_pose.pose.position.x;
-  panorama_position.y = pan_pose.pose.position.y;
+  panorama_position.x = pan_pose_msg.x;
+  panorama_position.y = pan_pose_msg.y;
   pan_locations.push_back(panorama_position);
 
   return true;
@@ -347,8 +345,8 @@ int main(int argc, char** argv)
   viz_map_pub = nh.advertise<nav_msgs::OccupancyGrid>("map_2D", 2);
   pan_grid_pub = nh.advertise<grid_mapping::OccupancyGrid>("angle_grid", 2);
   skel_pub = nh.advertise<PointCloud2>("skeleton", 2);
-  pan_pose_pub = nh.advertise<geometry_msgs::PoseStamped>("pan_pose", 2);
-  goal_pose_pub = nh.advertise<geometry_msgs::PoseStamped>("goal_pose", 2);
+  pan_pose_pub = nh.advertise<csqmi_exploration::PanGoal>("pan_pose", 2);
+  goal_pose_pub = nh.advertise<csqmi_exploration::PanGoal>("goal_pose", 2);
 
   int number_of_robots;
   bool leader;
@@ -415,7 +413,7 @@ int main(int argc, char** argv)
   if (leader) {
     capturePanorama();
   } else {
-    while (shared_goals_count <= robot_id-1) {
+    while (shared_goals_count < robot_id-1) {
       countdown.sleep(); countdown.sleep();
       ROS_INFO("main(...): robot%d is waiting for %d goals to be received "
           "before beginning exploration", robot_id, robot_id-1);
@@ -518,11 +516,16 @@ int main(int argc, char** argv)
     move_base_msgs::MoveBaseGoal action_goal;
     action_goal.target_pose.header.stamp = ros::Time::now();
     action_goal.target_pose.header.frame_id = tf_prefix + "/map";
-    action_goal.target_pose.header.seq = robot_id*10 + pan_count + 1;
     action_goal.target_pose.pose.position.x = goal_pt.x;
     action_goal.target_pose.pose.position.y = goal_pt.y;
     action_goal.target_pose.pose.orientation.w = 1.0;
-    goal_pose_pub.publish(action_goal.target_pose);
+
+    csqmi_exploration::PanGoal goal_pose_msg;
+    goal_pose_msg.frame_id = tf_prefix + "/map";
+    goal_pose_msg.x = goal_pt.x;
+    goal_pose_msg.y = goal_pt.y;
+    goal_pose_msg.goal_id = robot_id*100 + pan_count + 1;
+    goal_pose_pub.publish(goal_pose_msg);
 
     move_ac->sendGoal(action_goal, &moveDoneCB, &moveActiveCB, &moveFeedbackCB);
     move_ac->waitForResult();
