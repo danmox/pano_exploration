@@ -473,6 +473,11 @@ int main(int argc, char** argv)
     while (!goal_found && goal_it != goal_pairs.end()) {
       goal_pt = ang_grid.subscriptsToPosition(goal_it->px.y, goal_it->px.x);
 
+      if (goals.size() == 0) {
+        goal_found = true;
+        break;
+      }
+
       // make sure agent goals do not collide
       for (auto goal_pair : goals) {
         double goal_diff = (goal_pt - goal_pair.point).norm();
