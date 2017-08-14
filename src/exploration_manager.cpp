@@ -475,12 +475,17 @@ int main(int argc, char** argv)
 
       // make sure agent goals do not collide
       for (auto goal_pair : goals) {
-        if ((goal_pt - goal_pair.point).norm() < 0.5) {
+        double goal_diff = (goal_pt - goal_pair.point).norm();
+        if (goal_diff < 0.5) {
+          ROS_INFO_STREAM("main(...): goal: " << goal_pt << " in proximity to "
+              "goal: " << goal_pair.point << " with id: " << goal_pair.id);
           ++goal_it;
           continue;
+        } else {
+          goal_found = true;
+          break;
         }
       }
-      goal_found = true;
     }
 
     // if no goal was found, wait for a new map and then start planning again

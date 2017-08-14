@@ -62,8 +62,8 @@ include_directories(
 )
 
 add_executable(exploration_manager src/exploration_manager.cpp)
-add_dependencies(exploration_manager ${PROJECT_NAME}_generate_messages_cpp)
 target_link_libraries(exploration_manager ${catkin_LIBRARIES} ${OpenCV_LIBS})
+add_dependencies(exploration_manager ${PROJECT_NAME}_generate_messages_cpp)
 
 add_executable(skel_pointcloud src/pcl_visualization_test.cpp)
 target_link_libraries(skel_pointcloud ${catkin_LIBRARIES} ${OpenCV_LIBS} ${PCL_LIBRARIES})
