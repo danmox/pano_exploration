@@ -1,0 +1,35 @@
+<launch>
+
+    <arg name="camera" default="xtion"/>
+    <arg name="radio_id"/>
+    <arg name="tf_prefix"/>
+
+    <group ns="$(arg tf_prefix)">
+
+        <!-- Launch robot components -->
+        <include file="$(find robot_io)/launch/robot.launch">
+            <arg name="camera"          value="$(arg camera)"/>
+            <arg name="hokuyo"          value="true"/>
+            <arg name="odometry"        value="true"/>
+            <arg name="tf_prefix"       value="$(arg tf_prefix)"/>
+            <arg name="pulson"          value="true"/>
+            <arg name="radio_id"        value="$(arg radio_id)"/>
+        </include>
+
+        <!-- onboard localization provided gmapping -->
+        <include file="$(find robot_io)/launch/gmapping.launch">
+            <arg name="camera"      value="$(arg camera)" />
+            <arg name="tf_prefix"   value="$(arg tf_prefix)" />
+        </include>
+
+        <!-- slam pose publisher since gmapping only updates tf tree -->
+        <node pkg="robot_io" type="pose_pub" name="slam_pose_pub" output="screen">
+            <remap from="pose" to="slam_pose"/>
+            <param name="pose_frame" value="$(arg tf_prefix)/base_link"/>
+            <param name="world_frame" value="$(arg tf_prefix)/map"/>
+            <param name="publish_frame" value="$(arg tf_prefix)/map"/>
+        </node>
+
+    </group>
+
+</launch>

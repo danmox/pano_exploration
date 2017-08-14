@@ -1,0 +1,32 @@
+<launch>
+
+  <!-- rqt_console for logging -->
+  <node pkg="rqt_console" type="rqt_console" name="rqt_console"/>
+
+  <machine name="robot1" address="192.168.1.151" user="odroid"
+    env-loader="~/catkin_ws/src/robot_io/launch/env/sarge_env_loader.zsh"
+    default="true"/>
+  <include file="$(find csqmi_exploration)/launch/range_data_collection_robot.launch">
+      <arg name="tf_prefix"       value="robot1"/>
+      <arg name="radio_id"        value="101"/>
+  </include>
+
+  <!-- Robot 2 -->
+  <machine name="robot2" address="192.168.1.152" user="odroid"
+    env-loader="~/catkin_ws/src/robot_io/launch/env/sarge_env_loader.zsh"
+    default="true"/>
+  <include file="$(find csqmi_exploration)/launch/range_data_collection_robot.launch">
+      <arg name="tf_prefix"       value="robot2"/>
+      <arg name="radio_id"        value="102"/>
+  </include>
+
+  <!-- Robot 3 -->
+  <machine name="robot3" address="192.168.1.153" user="odroid"
+    env-loader="~/catkin_ws/src/robot_io/launch/env/sarge_env_loader.zsh"
+    default="true"/>
+  <include file="$(find csqmi_exploration)/launch/range_data_collection_robot.launch">
+      <arg name="tf_prefix"       value="robot3"/>
+      <arg name="radio_id"        value="104"/>
+  </include>
+
+</launch>
