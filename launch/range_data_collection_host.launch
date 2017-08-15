@@ -1,8 +1,5 @@
 <launch>
 
-  <!-- rqt_console for logging -->
-  <node pkg="rqt_console" type="rqt_console" name="rqt_console"/>
-
   <machine name="robot1" address="192.168.1.151" user="odroid"
     env-loader="~/catkin_ws/src/robot_io/launch/env/sarge_env_loader.zsh"
     default="true"/>
@@ -26,7 +23,7 @@
     default="true"/>
   <include file="$(find csqmi_exploration)/launch/range_data_collection_robot.launch">
       <arg name="tf_prefix"       value="robot3"/>
-      <arg name="radio_id"        value="104"/>
+      <arg name="radio_id"        value="103"/>
   </include>
 
 </launch>
