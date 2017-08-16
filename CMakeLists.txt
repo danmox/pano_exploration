@@ -19,6 +19,7 @@ find_package(catkin REQUIRED COMPONENTS
   pcl_conversions
   sensor_msgs
   message_generation
+  relative_localization
 )
 
 find_package(OpenCV REQUIRED)
@@ -27,6 +28,11 @@ find_package(PCL REQUIRED)
 add_message_files(
   FILES
     PanGoal.msg
+)
+
+add_service_files(
+  FILES
+    InitRelLocalization.srv
 )
 
 generate_messages(
@@ -52,6 +58,7 @@ catkin_package(
     pcl_ros
     pcl_conversions
     message_runtime
+    relative_localization
   DEPENDS OpenCV
 )
 
@@ -67,3 +74,8 @@ add_dependencies(exploration_manager ${PROJECT_NAME}_generate_messages_cpp)
 
 add_executable(skel_pointcloud src/pcl_visualization_test.cpp)
 target_link_libraries(skel_pointcloud ${catkin_LIBRARIES} ${OpenCV_LIBS} ${PCL_LIBRARIES})
+
+add_executable(init_relative_localization src/init_relative_localization.cpp)
+target_link_libraries(init_relative_localization ${catkin_LIBRARIES})
+add_dependencies(init_relative_localization ${catkin_EXPORTED_TARGETS}
+  ${PROJECT_NAME}_generate_messages_cpp)
