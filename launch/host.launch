@@ -3,6 +3,7 @@
   <arg name="network"             default="sarge"/>
   <arg name="ranging_radios"      default="false"/>
   <arg name="number_of_robots"    default="1"/>
+  <arg name="init_rl_before_pan"  default="2"/>
 
   <!-- global params -->
   <param name="/scan_range_min"   value="0.45"/>
@@ -16,12 +17,18 @@
   <!-- rqt_console for logging -->
   <node pkg="rqt_console" type="rqt_console" name="rqt_console"/>
 
-  <!-- static transforms when ranging radios aren't in use -->
+  <!-- service to initialize relative localization -->
+  <node pkg="csqmi_exploration" type="init_relative_localization"
+    name="init_relative_localization" output="screen">
+    <remap from="init" to="init_relative_localization"/>
+  </node>
+
+  <!-- static transforms when ranging radios aren't in use
   <node pkg="tf2_ros" type="static_transform_publisher" unless="$(arg ranging_radios)" 
     name="robot2_relative_trans" args="0 1.2 0 0 0 0 robot1/map robot2/map" />
   <node pkg="tf2_ros" type="static_transform_publisher" unless="$(arg ranging_radios)" 
     name="robot3_relative_trans" args="0 -1.2 0 0 0 0 robot1/map robot3/map" />
-
+ -->
   <!-- Robot 1
   <machine name="robot1" address="192.168.1.152" user="odroid"
     env-loader="~/catkin_ws/src/robot_io/launch/env/$(arg network)_env_loader.zsh"

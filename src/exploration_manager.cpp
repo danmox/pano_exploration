@@ -11,6 +11,7 @@
 #include <sensor_msgs/PointCloud2.h>
 #include <grid_mapping/OccupancyGrid.h>
 #include <csqmi_exploration/PanGoal.h>
+#include <csqmi_exploration/InitRelLocalization.h>
 
 #include <grid_mapping/angle_grid.h>
 #include <csqmi_planning/csqmi_planning.h>
@@ -364,12 +365,21 @@ int main(int argc, char** argv)
   pan_pose_pub = nh.advertise<csqmi_exploration::PanGoal>("pan_pose", 2);
   goal_pose_pub = nh.advertise<csqmi_exploration::PanGoal>("goal_pose", 2);
 
+  std::string init_name = "/init_relative_localization";
+  ros::ServiceClient init_client;
+  init_client = nh.serviceClient<csqmi_exploration::InitRelLocalization>(init_name);
+  ROS_INFO("main(...): waiting for %s service server", init_name.c_str());
+  init_client.waitForExistence();
+  ROS_INFO("main(...): %s service server ready", init_name.c_str());
+
   int number_of_robots;
   bool leader;
+  int init_rl_before_pan;
   if (!pnh.getParam("tf_prefix", tf_prefix) ||
       !pnh.getParam("robot_id", robot_id) ||
       !pnh.getParam("leader", leader) ||
       !nh.getParam("/number_of_robots", number_of_robots) ||
+      !nh.getParam("/init_rl_before_pan", init_rl_before_pan) ||
       !nh.getParam("/scan_range_min", scan_range_min) ||
       !nh.getParam("/scan_range_max", scan_range_max)) {
     ROS_FATAL("main(...): failed to read params from server");
@@ -558,6 +568,24 @@ int main(int argc, char** argv)
     if (!move_base_succeeded) {
       ROS_INFO("main(...): Navigation failed. Restarting planning process.");
       continue;
+    }
+
+    /*
+     * if each robot has traveled a sufficient distance, initialize relative
+     * localization
+     */
+
+    if (pan_count+1 == init_rl_before_pan) {
+      while (ros::ok()) {
+        csqmi_exploration::InitRelLocalization rl_msg;
+        rl_msg.request.id = robot_id;
+        init_client.call(rl_msg);
+        if (rl_msg.response.status)
+          break;
+        ROS_INFO("main(...): waiting for relative localization to initialize");
+        countdown.sleep();
+        ros::spinOnce();
+      }
     }
 
     /*
