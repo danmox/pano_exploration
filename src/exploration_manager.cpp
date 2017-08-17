@@ -192,13 +192,7 @@ void mapCB(const grid_mapping::OccupancyGridConstPtr& msg)
 
   geometry_msgs::TransformStamped tfs;
   if (fetchTransform(msg->header.frame_id, tfs)) {
-    grid_mapping::OccupancyGrid trans_map = *msg;
-    trans_map.origin.x += tfs.transform.translation.x;
-    trans_map.origin.y += tfs.transform.translation.y;
-    grid_mapping::OccupancyGridConstPtr trans_map_ptr;
-    trans_map_ptr.reset(new grid_mapping::OccupancyGrid(trans_map));
-
-    ang_grid.insertMap(trans_map_ptr);
+    ang_grid.insertMap(msg, tfs);
     ROS_INFO("mapCB(...): %s inserted map with frame_id %s", tf_prefix.c_str(),
         msg->header.frame_id.c_str());
     viz_map_pub.publish(ang_grid.createROSOGMsg());
@@ -214,9 +208,8 @@ void goalPoseCB(const csqmi_exploration::PanGoalConstPtr& msg)
 
   geometry_msgs::TransformStamped tfs;
   if (fetchTransform(msg->frame_id, tfs)) {
-    grid_mapping::Point pt(msg->x, msg->y);
-    pt.x += tfs.transform.translation.x;
-    pt.y += tfs.transform.translation.y;
+    grid_mapping::Point in_pt(msg->x, msg->y);
+    grid_mapping::Point pt = grid_mapping::Point::transformPoint(tfs, in_pt);
 
     GoalIDPair goal_pair;
     goal_pair.point = pt;
@@ -236,9 +229,8 @@ void panPoseCB(const csqmi_exploration::PanGoalConstPtr& msg)
   int id = msg->goal_id;
   geometry_msgs::TransformStamped tfs;
   if (fetchTransform(msg->frame_id, tfs)) {
-    grid_mapping::Point pt(msg->x, msg->y);
-    pt.x += tfs.transform.translation.x;
-    pt.y += tfs.transform.translation.y;
+    grid_mapping::Point in_pt(msg->x, msg->y);
+    grid_mapping::Point pt = grid_mapping::Point::transformPoint(tfs, in_pt);
     pan_locations.push_back(pt);
     ROS_INFO("panPoseCB(...): %s added panorama pose with id %d to "
         "pan_locations", tf_prefix.c_str(), id);
