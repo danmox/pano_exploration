@@ -44,7 +44,7 @@
         </include>
 
         <!-- slam pose publisher since gmapping only updates tf tree -->
-        <node pkg="robot_io" type="pose_pub" name="slam_pose_pub" output="screen">
+        <node pkg="robot_io" type="pose_pub" name="slam_pose_pub"> <!-- output="screen"> -->
             <remap from="pose" to="slam_pose"/>
             <param name="pose_frame" value="$(arg tf_prefix)/base_link"/>
             <param name="world_frame" value="$(arg tf_prefix)/map"/>
@@ -55,7 +55,7 @@
         <include ns="move_base" file="$(find robot_io)/launch/move_base_params.launch">
           <arg name="tf_prefix" value="$(arg tf_prefix)"/>
         </include>
-        <node pkg="move_base" type="move_base" respawn="false" name="move_base" output="screen">
+        <node pkg="move_base" type="move_base" respawn="false" name="move_base"> <!-- output="screen"> -->
           <remap from="cmd_vel" to="velocity_commands"/>
         </node>
 
