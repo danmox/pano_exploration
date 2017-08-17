@@ -161,6 +161,50 @@ void AngleGrid::insertMap(const OccupancyGridConstPtr& msg)
   update(&in);
 }
 
+void AngleGrid::insertMap(const OccupancyGridConstPtr& in_map_msg,
+    const geometry_msgs::TransformStamped& tfs)
+{
+  AngleGrid in_map(in_map_msg);
+
+  // transform the four corners of in_map into my frame
+  std::vector<Point> old_bounds, new_bounds;
+  Point old_bounds_span = in_map.topCorner() - in_map.origin;
+  old_bounds.push_back(in_map.origin);
+  old_bounds.push_back(in_map.origin + Point(old_bounds_span.x, 0.0));
+  old_bounds.push_back(in_map.topCorner());
+  old_bounds.push_back(in_map.origin + Point(0.0, old_bounds_span.y));
+
+  for (Point pt : old_bounds)
+    new_bounds.push_back(Point::transformPoint(tfs, pt));
+
+  // resize my map to make sure they fit
+  auto x_cond = [] (Point p1, Point p2) { return p1.x < p2.x; };
+  auto y_cond = [] (Point p1, Point p2) { return p1.y < p2.y; };
+  double min_x = std::min_element(new_bounds.begin(), new_bounds.end(), x_cond)->x;
+  double min_y = std::min_element(new_bounds.begin(), new_bounds.end(), y_cond)->y;
+  double max_x = std::max_element(new_bounds.begin(), new_bounds.end(), x_cond)->x;
+  double max_y = std::max_element(new_bounds.begin(), new_bounds.end(), y_cond)->y;
+  Point new_min(min_x, min_y), new_max(max_x, max_y);
+  expandMap(new_min, new_max);
+
+  // compute the step along each axis of the old frame
+  Point dx = new_bounds[1] - new_bounds[0];
+  dx = (dx/dx.norm())*resolution/2.0;
+  Point dy = new_bounds[3] - new_bounds[0];
+  dy = (dy/dy.norm())*resolution/2.0;
+
+  int l_sz = w*h;
+  int old_l_sz = in_map.w*in_map.h;
+  for (int r = 0; r < in_map.h*2; ++r) {
+    for (int c = 0; c < in_map.w*2; ++c) {
+      Point pt = new_bounds[0] + r*dy + c*dx;
+      int idx = positionToIndex(pt);
+      for (int k = 0; k < layers; ++k)
+        data[idx + k*l_sz] += in_map.data[in_map.subscriptsToIndex(r/2, c/2) + k*old_l_sz];
+    }
+  }
+}
+
 OccupancyGridPtr AngleGrid::createROSMsg()
 {
   static int seq = 0;

@@ -3,6 +3,8 @@
 
 #include <math.h>
 #include <iostream>
+#include <geometry_msgs/TransformStamped.h>
+#include <tf/transform_datatypes.h>
 
 namespace grid_mapping {
 
@@ -41,6 +43,22 @@ class Point
     {
       out << "(" << p.x << ", " << p.y << ")";
       return out;
+    }
+
+    static Point transformPoint(const geometry_msgs::TransformStamped& tfs,
+        const Point p)
+    {
+      // assuming 2D: compute the translation and rotation of the transform
+      double tx = tfs.transform.translation.x;
+      double ty = tfs.transform.translation.y;
+      double theta = tf::getYaw(tfs.transform.rotation);
+
+      // apply transformation
+      Point p_out;
+      p_out.x = p.x*cos(theta) - p.y*sin(theta) + tx;
+      p_out.y = p.x*sin(theta) + p.y*cos(theta) + ty;
+
+      return p_out;
     }
 };
 

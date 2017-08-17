@@ -6,6 +6,7 @@
 #include <grid_mapping/OccupancyGrid.h>
 #include <nav_msgs/OccupancyGrid.h>
 #include <geometry_msgs/Pose2D.h>
+#include <geometry_msgs/TransformStamped.h>
 #include <sensor_msgs/LaserScan.h>
 
 #include <vector>
@@ -27,6 +28,8 @@ class AngleGrid : public OccGrid
     virtual void update(const Point, const int, const int);
 
     void insertMap(const OccupancyGridConstPtr&);
+    void insertMap(const OccupancyGridConstPtr&,
+        const geometry_msgs::TransformStamped&);
 
     virtual void updateRobotCells(const Point);
 

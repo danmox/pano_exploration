@@ -77,3 +77,8 @@ add_executable(pixel_density_grid_test src/pixel_density_grid_test.cpp)
 add_dependencies(pixel_density_grid_test ${${PROJECT_NAME}_EXPORTED_TARGETS})
 target_link_libraries(pixel_density_grid_test ${PROJECT_NAME} 
   ${catkin_LIBRARIES} ${OpenCV_LIBS})
+
+add_executable(transform_grid_test src/transform_grid_test.cpp)
+add_dependencies(transform_grid_test ${${PROJECT_NAME}_EXPORTED_TARGETS})
+target_link_libraries(transform_grid_test ${PROJECT_NAME} ${catkin_LIBRARIES}
+  ${OpenCV_LIBS})
