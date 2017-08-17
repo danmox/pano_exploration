@@ -373,13 +373,14 @@ int main(int argc, char** argv)
   ROS_INFO("main(...): %s service server ready", init_name.c_str());
 
   int number_of_robots;
-  bool leader;
+  bool leader, ranging_radios;
   int init_rl_before_pan;
   if (!pnh.getParam("tf_prefix", tf_prefix) ||
       !pnh.getParam("robot_id", robot_id) ||
       !pnh.getParam("leader", leader) ||
       !nh.getParam("/number_of_robots", number_of_robots) ||
       !nh.getParam("/init_rl_before_pan", init_rl_before_pan) ||
+      !nh.getParam("/ranging_radios", ranging_radios) ||
       !nh.getParam("/scan_range_min", scan_range_min) ||
       !nh.getParam("/scan_range_max", scan_range_max)) {
     ROS_FATAL("main(...): failed to read params from server");
@@ -575,7 +576,7 @@ int main(int argc, char** argv)
      * localization
      */
 
-    if (pan_count+1 == init_rl_before_pan) {
+    if (ranging_radios && pan_count+1 == init_rl_before_pan) {
       while (ros::ok()) {
         csqmi_exploration::InitRelLocalization rl_msg;
         rl_msg.request.id = robot_id;
