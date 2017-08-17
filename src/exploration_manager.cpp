@@ -188,76 +188,100 @@ bool fetchTransform(string source_frame, geometry_msgs::TransformStamped& trans)
 
 void mapCB(const grid_mapping::OccupancyGridConstPtr& msg)
 {
+  static vector<grid_mapping::OccupancyGrid> msgs_to_process;
   received_new_map = true;
+  msgs_to_process.push_back(*msg);
 
-  geometry_msgs::TransformStamped tfs;
-  if (fetchTransform(msg->header.frame_id, tfs)) {
-    ang_grid.insertMap(msg, tfs);
-    ROS_INFO("mapCB(...): %s inserted map with frame_id %s", tf_prefix.c_str(),
-        msg->header.frame_id.c_str());
-    viz_map_pub.publish(ang_grid.createROSOGMsg());
-  } else {
-    ROS_WARN("mapCB(...): %s failed to insert map with frame_id %s",
-        tf_prefix.c_str(), msg->header.frame_id.c_str());
+  for (auto& grid : msgs_to_process) {
+    geometry_msgs::TransformStamped tfs;
+    if (fetchTransform(grid.header.frame_id, tfs)) {
+      grid_mapping::OccupancyGridConstPtr cpt(new grid_mapping::OccupancyGrid(grid));
+      ang_grid.insertMap(msg, tfs);
+      ROS_INFO("mapCB(...): %s inserted map with frame_id %s", tf_prefix.c_str(),
+          msg->header.frame_id.c_str());
+      viz_map_pub.publish(ang_grid.createROSOGMsg());
+    } else {
+      ROS_WARN("mapCB(...): %s failed to insert map with frame_id %s",
+          tf_prefix.c_str(), msg->header.frame_id.c_str());
+      return;
+    }
   }
+  ROS_INFO("mapCB(...): processed %d messages in msgs_to_process",
+      (int)msgs_to_process.size());
+  msgs_to_process.clear();
 }
 
 void goalPoseCB(const csqmi_exploration::PanGoalConstPtr& msg)
 {
+  static vector<csqmi_exploration::PanGoal> msgs_to_process;
   ++shared_goals_count;
+  msgs_to_process.push_back(*msg);
 
-  geometry_msgs::TransformStamped tfs;
-  if (fetchTransform(msg->frame_id, tfs)) {
-    grid_mapping::Point in_pt(msg->x, msg->y);
-    grid_mapping::Point pt = grid_mapping::Point::transformPoint(tfs, in_pt);
+  for (csqmi_exploration::PanGoal& goal_msg : msgs_to_process) {
+    geometry_msgs::TransformStamped tfs;
+    if (fetchTransform(goal_msg.frame_id, tfs)) {
+      grid_mapping::Point in_pt(goal_msg.x, goal_msg.y);
+      grid_mapping::Point pt = grid_mapping::Point::transformPoint(tfs, in_pt);
 
-    GoalIDPair goal_pair;
-    goal_pair.point = pt;
-    goal_pair.id = msg->goal_id;
-    goals.push_back(goal_pair);
-    ROS_INFO("goalPoseCB(...): %s added goal pose with id %d to goals",
-        tf_prefix.c_str(), goal_pair.id);
-  } else {
-    ROS_WARN("goalPoseCB(...): %s failed to add goal pose with ID %d to goals",
-        tf_prefix.c_str(), msg->goal_id);
-    return;
+      GoalIDPair goal_pair;
+      goal_pair.point = pt;
+      goal_pair.id = goal_msg.goal_id;
+      goals.push_back(goal_pair);
+      ROS_INFO("goalPoseCB(...): %s added goal pose with id %d to goals",
+          tf_prefix.c_str(), goal_pair.id);
+    } else {
+      ROS_WARN("goalPoseCB(...): %s failed to add goal pose with ID %d to goals",
+          tf_prefix.c_str(), goal_msg.goal_id);
+      return;
+    }
   }
+  ROS_INFO("goalPoseCB(...): processed %d messages in msgs_to_process",
+      (int)msgs_to_process.size());
+  msgs_to_process.clear();
 }
 
 void panPoseCB(const csqmi_exploration::PanGoalConstPtr& msg)
 {
-  int id = msg->goal_id;
-  geometry_msgs::TransformStamped tfs;
-  if (fetchTransform(msg->frame_id, tfs)) {
-    grid_mapping::Point in_pt(msg->x, msg->y);
-    grid_mapping::Point pt = grid_mapping::Point::transformPoint(tfs, in_pt);
-    pan_locations.push_back(pt);
-    ROS_INFO("panPoseCB(...): %s added panorama pose with id %d to "
-        "pan_locations", tf_prefix.c_str(), id);
+  static vector<csqmi_exploration::PanGoal> msgs_to_process;
+  msgs_to_process.push_back(*msg);
 
-    if (goals.size() == 0)
-      return;
+  for (csqmi_exploration::PanGoal pan_msg : msgs_to_process) {
+    int id = pan_msg.goal_id;
+    geometry_msgs::TransformStamped tfs;
+    if (fetchTransform(pan_msg.frame_id, tfs)) {
+      grid_mapping::Point in_pt(pan_msg.x, pan_msg.y);
+      grid_mapping::Point pt = grid_mapping::Point::transformPoint(tfs, in_pt);
+      pan_locations.push_back(pt);
+      ROS_INFO("panPoseCB(...): %s added panorama pose with id %d to "
+          "pan_locations", tf_prefix.c_str(), id);
 
-    for (int i = 0; i < goals.size(); ++i) {
-      if (goals[i].id == id) {
-        goals.erase(goals.begin()+i);
-        ROS_INFO("panPoseCB(...): %s found goal and panorama with matching id: "
-            "%d", tf_prefix.c_str(), id);
+      if (goals.size() == 0)
         return;
-      }
-    }
 
-    ROS_INFO("panPoseCB(...): %s found no matching goal for panorama with id: "
-        "%d", tf_prefix.c_str(), id);
-    std::stringstream ss;
-    for (int i = 0; i < goals.size()-1; ++i) { ss << goals[i].id << ", "; }
-    ss << goals.back().id;
-    string id_str = ss.str();
-    ROS_INFO("panPoseCB(...): current list of goal ids is: %s", id_str.c_str());
-  } else {
-    ROS_INFO("panPoseCB(...): %s failed to add panorama with ID %d to captured "
-        "panorama list", tf_prefix.c_str(), msg->goal_id);
+      for (int i = 0; i < goals.size(); ++i) {
+        if (goals[i].id == id) {
+          goals.erase(goals.begin()+i);
+          ROS_INFO("panPoseCB(...): %s found goal and panorama with matching id: "
+              "%d", tf_prefix.c_str(), id);
+          return;
+        }
+      }
+
+      ROS_INFO("panPoseCB(...): %s found no matching goal for panorama with id: "
+          "%d", tf_prefix.c_str(), id);
+      std::stringstream ss;
+      for (int i = 0; i < goals.size()-1; ++i) { ss << goals[i].id << ", "; }
+      ss << goals.back().id;
+      string id_str = ss.str();
+      ROS_INFO("panPoseCB(...): current list of goal ids is: %s", id_str.c_str());
+    } else {
+      ROS_INFO("panPoseCB(...): %s failed to add panorama with ID %d to captured "
+          "panorama list", tf_prefix.c_str(), pan_msg.goal_id);
+    }
   }
+  ROS_INFO("panPoseCB(...): processed %d messages in msgs_to_process",
+      (int)msgs_to_process.size());
+  msgs_to_process.clear();
 }
 
 //
