@@ -20,7 +20,7 @@
         </include>
 
         <!-- panorama nodelet -->
-        <include file="$(find panorama)/launch/panorama_nodelet.launch">
+        <include file="$(find panorama)/launch/panorama_node.launch">
           <arg name="save_directory"      value="/home/odroid/.ros/panoramas"/>
           <arg name="world_frame"         value="$(arg tf_prefix)/map"/>
           <arg name="camera_frame"        value="$(arg tf_prefix)/$(arg camera)_rgb_frame"/>

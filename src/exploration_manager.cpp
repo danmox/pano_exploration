@@ -70,8 +70,8 @@ std::shared_ptr<MoveAC> move_ac;
 
 void panFeedbackCB(const panorama::PanoramaFeedbackConstPtr& feedback)
 {
-  ROS_INFO("panFeedbackCB(...): Captured frame %d of 72",
-      feedback->frames_captured);
+  //ROS_INFO("panFeedbackCB(...): Captured frame %d of 72",
+  //    feedback->frames_captured);
 }
 
 void panActiveCB()
@@ -365,13 +365,6 @@ int main(int argc, char** argv)
   pan_pose_pub = nh.advertise<csqmi_exploration::PanGoal>("pan_pose", 2);
   goal_pose_pub = nh.advertise<csqmi_exploration::PanGoal>("goal_pose", 2);
 
-  std::string init_name = "/init_relative_localization";
-  ros::ServiceClient init_client;
-  init_client = nh.serviceClient<csqmi_exploration::InitRelLocalization>(init_name);
-  ROS_INFO("main(...): waiting for %s service server", init_name.c_str());
-  init_client.waitForExistence();
-  ROS_INFO("main(...): %s service server ready", init_name.c_str());
-
   int number_of_robots;
   bool leader, ranging_radios;
   int init_rl_before_pan;
@@ -421,6 +414,15 @@ int main(int argc, char** argv)
   move_ac->waitForServer();
   ROS_INFO("main(...): %s is ready", nav_server_name.c_str());
 
+  ros::ServiceClient init_client;
+  if (ranging_radios) {
+    std::string init_name = "/init_relative_localization";
+    init_client = nh.serviceClient<csqmi_exploration::InitRelLocalization>(init_name);
+    ROS_INFO("main(...): waiting for %s service server", init_name.c_str());
+    init_client.waitForExistence();
+    ROS_INFO("main(...): %s service server ready", init_name.c_str());
+  }
+
   /*
    * Give the other components/robots time to load before staring exploration
    */
@@ -438,6 +440,7 @@ int main(int argc, char** argv)
    */
 
   if (leader) {
+    ROS_INFO("main(...): capturing initial panorama");
     capturePanorama();
   } else {
     while (shared_goals_count < robot_id-1) {
