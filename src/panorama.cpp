@@ -244,6 +244,11 @@ void Panorama::captureLoop()
       camera_pose.header.frame_id = world_frame;
       bag.write("camera_pose", hd.stamp, camera_pose);
 
+      // also save the pose from slam since odom isn't always reliable
+      geometry_msgs::TransformStamped slam_camera_pose;
+      getTrans(world_frame, camera_frame, hd.stamp, slam_camera_pose);
+      bag.write("slam_camera_pose", hd.stamp, slam_camera_pose);
+
       panorama::PanoramaFeedback feedback;
       feedback.frames_captured = frame++;
       as.publishFeedback(feedback);
