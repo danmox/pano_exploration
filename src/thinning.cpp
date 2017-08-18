@@ -90,12 +90,18 @@ void computeSkeleton(grid_mapping::AngleGrid& ang_grid, cv::Mat& img_out,
           next_point.pop();
           tmp.at<unsigned char>(p) = 0;
   
-          cv::Mat roi = tmp(cv::Rect(p, cv::Size(3,3))-cv::Point(1,1));
-          std::vector<cv::Point> neighbors;
-          cv::findNonZero(roi, neighbors);
+          cv::Mat roi;
+          try {
+            roi = tmp(cv::Rect(p, cv::Size(3,3))-cv::Point(1,1));
+            std::vector<cv::Point> neighbors;
+            cv::findNonZero(roi, neighbors);
 
-          for (auto n : neighbors) {
-            next_point.push(n+p-cv::Point(1,1));
+            for (auto n : neighbors) {
+              next_point.push(n+p-cv::Point(1,1));
+            }
+
+          } catch (cv::Exception& e) {
+            ROS_WARN("[csqmi_planning]: %s", e.what());
           }
         }
 
