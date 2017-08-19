@@ -201,21 +201,21 @@ void OccGrid::insertPanorama(const std::string bagfile)
   double fx = camera_info.K[0];
   double fy = camera_info.K[4];
 
-  std::deque<geometry_msgs::PoseStamped> camera_poses;
+  std::deque<geometry_msgs::TransformStamped> camera_trans;
   std::deque<sensor_msgs::Image> imgs;
-  std::vector<std::string> topics = {"camera_pose", "depth"};
+  std::vector<std::string> topics = {"slam_camera_pose", "depth"};
   for (auto m : rosbag::View(bag, rosbag::TopicQuery(topics))) {
-    if (m.getTopic().compare("camera_pose") == 0)
-      camera_poses.push_back(*m.instantiate<geometry_msgs::PoseStamped>());
+    if (m.getTopic().compare("slam_camera_pose") == 0)
+      camera_trans.push_back(*m.instantiate<geometry_msgs::TransformStamped>());
     else if (m.getTopic().compare("depth") == 0)
       imgs.push_back(*m.instantiate<sensor_msgs::Image>());
 
-    if (!camera_poses.empty() && !imgs.empty()) {
+    if (!camera_trans.empty() && !imgs.empty()) {
       // convert camera pose to 2D pose
       geometry_msgs::Pose2D pose;
-      pose.x = camera_poses.front().pose.position.x;
-      pose.y = camera_poses.front().pose.position.y;
-      pose.theta = tf::getYaw(camera_poses.front().pose.orientation);
+      pose.x = camera_trans.front().transform.translation.x;
+      pose.y = camera_trans.front().transform.translation.y;
+      pose.theta = tf::getYaw(camera_trans.front().transform.rotation);
       geometry_msgs::Pose2DConstPtr pose_ptr(new geometry_msgs::Pose2D(pose));
 
       // compute offset in pixels between center row of depth image and row in
@@ -224,7 +224,7 @@ void OccGrid::insertPanorama(const std::string bagfile)
       // if the camera was not tilted)
       double roll, tilt_angle, yaw;
       tf::Quaternion quat;
-      tf::quaternionMsgToTF(camera_poses.front().pose.orientation, quat);
+      tf::quaternionMsgToTF(camera_trans.front().transform.rotation, quat);
       tf::Matrix3x3(quat).getRPY(roll, tilt_angle, yaw);
       int tilt_offset = -fy * tan(tilt_angle);
 
@@ -258,7 +258,7 @@ void OccGrid::insertPanorama(const std::string bagfile)
       // update map with laserscan
       insertScan(scan_ptr, pose_ptr);
 
-      camera_poses.pop_front();
+      camera_trans.pop_front();
       imgs.pop_front();
     }
   }
