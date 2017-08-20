@@ -312,10 +312,6 @@ bool capturePanorama()
   pan_grid.range_min = scan_range_min;
   pan_grid.range_max = scan_range_max;
   pan_grid.insertPanorama(pan_file);
-  pan_grid_pub.publish(pan_grid.createROSMsg());
-
-  // insert the pan grid into ang grid
-  ang_grid.insertPanorama(pan_file);
 
   // mark the position of other robots capture in the panorama as free
   for (int i = 1; i <= number_of_robots; ++i) {
@@ -333,11 +329,21 @@ bool capturePanorama()
           my_tfs.transform.translation.y);
 
       if ((other_pose - my_pose).norm() < scan_range_max + 0.5) {
-        ROS_INFO("[exploration_manager] Removing robot%d from my map", i);
-        ang_grid.updateRobotCells(other_pose, 0.5);
+        ROS_INFO_STREAM("[exploration_manager] Removing robot" << i << " at "
+            << other_pose << " from my map");
+        pan_grid.updateRobotCells(other_pose, 0.5);
       }
     }
   }
+
+  // create grid_mapping::OccupancyGrid ROS message of pan_grid
+  grid_mapping::OccupancyGrid pan_grid_msg = *pan_grid.createROSMsg();
+  pan_grid_pub.publish(pan_grid_msg);
+
+  // insert the pan grid into ang grid
+  grid_mapping::OccupancyGridConstPtr pan_grid_msg_ptr;
+  pan_grid_msg_ptr.reset(new grid_mapping::OccupancyGrid(pan_grid_msg));
+  ang_grid.insertMap(pan_grid_msg_ptr);
 
   // publish a 2D visualization of the angle grid
   viz_map_pub.publish(ang_grid.createROSOGMsg());
