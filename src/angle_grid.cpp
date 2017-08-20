@@ -98,15 +98,19 @@ void AngleGrid::update(const AngleGrid* grid)
 void AngleGrid::updateRobotCells(const Point po, double robot_radius)
 {
   if (!inBounds(po)) {
+    ROS_INFO_STREAM("[AngleGrid] cannot update cells around po = " << po
+        << " since it falls outside the map");
     return;
   }
 
   int origin_cell = positionToIndex(po);
   auto robot_cells = neighborIndices(origin_cell, robot_radius);
   robot_cells.push_back(origin_cell);
-  for (auto cell : robot_cells)
-    for (int l = 0; l < layers; ++l)
-      data[cell + l*w*h] -= 5.0; // sufficiently high log-odds free value
+  for (auto cell : robot_cells) {
+    for (int l = 0; l < layers; ++l) {
+      data[cell + l*w*h] = -5.0; // sufficiently high log-odds free value
+    }
+  }
 }
 
 void AngleGrid::insertScan(const sensor_msgs::LaserScanConstPtr& scan, 
