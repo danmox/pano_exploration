@@ -471,12 +471,30 @@ int main(int argc, char** argv)
 
   if (leader) {
     ROS_INFO("main(...): capturing initial panorama");
+
+    string robot_frame = tf_prefix + "/base_link";
+    geometry_msgs::TransformStamped tfs;
+    if (!getTrans(robot_frame, tfs)) {
+      ROS_WARN("[exploration_manager] failed to fetch pose of robot for first "
+          "panorama. Using (0.0, 0.0) as an initial guess for the robot.");
+      tfs.transform.translation.x = 0.0;
+      tfs.transform.translation.y = 0.0;
+    }
+
+    csqmi_exploration::PanGoal goal_pose_msg;
+    goal_pose_msg.frame_id = tf_prefix + "/map";
+    goal_pose_msg.x = tfs.transform.translation.x;
+    goal_pose_msg.y = tfs.transform.translation.y;
+    goal_pose_msg.goal_id = robot_id*100 + pan_count + 1;
+    goal_pose_pub.publish(goal_pose_msg);
+
     capturePanorama();
+
   } else {
-    while (shared_goals_count < robot_id-1) {
+    while (shared_goals_count < robot_id) {
       countdown.sleep(); countdown.sleep();
       ROS_INFO("main(...): robot%d is waiting for %d goals to be received "
-          "before beginning exploration", robot_id, robot_id-1);
+          "before beginning exploration", robot_id, robot_id);
       ros::spinOnce();
     }
   }
