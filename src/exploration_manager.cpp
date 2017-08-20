@@ -51,16 +51,17 @@ struct GoalIDPair
 
 int robot_id;
 int pan_count = 0;
+int number_of_robots;
 volatile int shared_goals_count = 0;
 volatile bool received_new_map = false, move_base_succeeded = true;
 string tf_prefix;
 string pan_file;
+double scan_range_min, scan_range_max;
 AngleGrid ang_grid(grid_mapping::Point(0.0, 0.0), 0.1, 1, 1);
 ros::Publisher viz_map_pub, pan_grid_pub, pan_pose_pub;
 vector<grid_mapping::Point> pan_locations;
 vector<GoalIDPair> goals;
 tf2_ros::Buffer tfBuffer;
-double scan_range_min, scan_range_max;
 std::shared_ptr<PanAC> pan_ac;
 std::shared_ptr<MoveAC> move_ac;
 
@@ -173,7 +174,7 @@ void addPixelsToPC(const AngleGrid& grid, CloudXYZRGB& pc,
 // coordination callbacks
 //
 
-bool fetchTransform(string source_frame, geometry_msgs::TransformStamped& trans)
+bool getTrans(string source_frame, geometry_msgs::TransformStamped& trans)
 {
   bool res = false;
   try {
@@ -181,7 +182,7 @@ bool fetchTransform(string source_frame, geometry_msgs::TransformStamped& trans)
     trans = tfBuffer.lookupTransform(my_frame, source_frame, ros::Time(0));
     res = true;
   } catch (tf2::TransformException &ex) {
-    ROS_WARN("fetchTransform(...): %s failed to fetch transform:\n%s",
+    ROS_WARN("getTrans(...): %s failed to fetch transform:\n%s",
         tf_prefix.c_str(), ex.what());
   }
   return res;
@@ -195,7 +196,7 @@ void mapCB(const grid_mapping::OccupancyGridConstPtr& msg)
 
   for (auto& grid : msgs_to_process) {
     geometry_msgs::TransformStamped tfs;
-    if (fetchTransform(grid.header.frame_id, tfs)) {
+    if (getTrans(grid.header.frame_id, tfs)) {
       grid_mapping::OccupancyGridConstPtr cpt(new grid_mapping::OccupancyGrid(grid));
       ang_grid.insertMap(msg, tfs);
       ROS_INFO("mapCB(...): %s inserted map with frame_id %s", tf_prefix.c_str(),
@@ -220,7 +221,7 @@ void goalPoseCB(const csqmi_exploration::PanGoalConstPtr& msg)
 
   for (csqmi_exploration::PanGoal& goal_msg : msgs_to_process) {
     geometry_msgs::TransformStamped tfs;
-    if (fetchTransform(goal_msg.frame_id, tfs)) {
+    if (getTrans(goal_msg.frame_id, tfs)) {
       grid_mapping::Point in_pt(goal_msg.x, goal_msg.y);
       grid_mapping::Point pt = grid_mapping::Point::transformPoint(tfs, in_pt);
 
@@ -249,7 +250,7 @@ void panPoseCB(const csqmi_exploration::PanGoalConstPtr& msg)
   for (csqmi_exploration::PanGoal pan_msg : msgs_to_process) {
     int id = pan_msg.goal_id;
     geometry_msgs::TransformStamped tfs;
-    if (fetchTransform(pan_msg.frame_id, tfs)) {
+    if (getTrans(pan_msg.frame_id, tfs)) {
       grid_mapping::Point in_pt(pan_msg.x, pan_msg.y);
       grid_mapping::Point pt = grid_mapping::Point::transformPoint(tfs, in_pt);
       pan_locations.push_back(pt);
@@ -313,8 +314,32 @@ bool capturePanorama()
   pan_grid.insertPanorama(pan_file);
   pan_grid_pub.publish(pan_grid.createROSMsg());
 
-  // insert the pan grid into ang grid and publish for visualization
+  // insert the pan grid into ang grid
   ang_grid.insertPanorama(pan_file);
+
+  // mark the position of other robots capture in the panorama as free
+  for (int i = 1; i <= number_of_robots; ++i) {
+    if (i == robot_id) {
+      continue;
+    }
+
+    string src_frame = "robot" + std::to_string(i) + "/base_link";
+    string my_pose_frame = tf_prefix + string("/base_link");
+    geometry_msgs::TransformStamped other_tfs, my_tfs;
+    if (getTrans(src_frame, other_tfs) && getTrans(my_pose_frame, my_tfs)) {
+      grid_mapping::Point other_pose(other_tfs.transform.translation.x,
+          other_tfs.transform.translation.y);
+      grid_mapping::Point my_pose(my_tfs.transform.translation.x,
+          my_tfs.transform.translation.y);
+
+      if ((other_pose - my_pose).norm() < scan_range_max + 0.5) {
+        ROS_INFO("[exploration_manager] Removing robot%d from my map", i);
+        ang_grid.updateRobotCells(other_pose, 0.5);
+      }
+    }
+  }
+
+  // publish a 2D visualization of the angle grid
   viz_map_pub.publish(ang_grid.createROSOGMsg());
 
   // read panoaram capture location
@@ -365,7 +390,6 @@ int main(int argc, char** argv)
   pan_pose_pub = nh.advertise<csqmi_exploration::PanGoal>("pan_pose", 2);
   goal_pose_pub = nh.advertise<csqmi_exploration::PanGoal>("goal_pose", 2);
 
-  int number_of_robots;
   bool leader, ranging_radios;
   int init_rl_before_pan;
   if (!pnh.getParam("tf_prefix", tf_prefix) ||
