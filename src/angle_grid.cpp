@@ -97,6 +97,10 @@ void AngleGrid::update(const AngleGrid* grid)
 
 void AngleGrid::updateRobotCells(const Point po, double robot_radius)
 {
+  if (!inBounds(po)) {
+    return;
+  }
+
   int origin_cell = positionToIndex(po);
   auto robot_cells = neighborIndices(origin_cell, robot_radius);
   robot_cells.push_back(origin_cell);
