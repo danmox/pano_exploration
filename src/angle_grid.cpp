@@ -95,10 +95,10 @@ void AngleGrid::update(const AngleGrid* grid)
 	}
 }
 
-void AngleGrid::updateRobotCells(const Point po)
+void AngleGrid::updateRobotCells(const Point po, double robot_radius)
 {
   int origin_cell = positionToIndex(po);
-  auto robot_cells = neighborIndices(origin_cell, 0.1);
+  auto robot_cells = neighborIndices(origin_cell, robot_radius);
   robot_cells.push_back(origin_cell);
   for (auto cell : robot_cells)
     for (int l = 0; l < layers; ++l)

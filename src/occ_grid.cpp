@@ -283,10 +283,10 @@ void OccGrid::insertPanorama(const std::string bagfile)
   bag.close();
 }
 
-void OccGrid::updateRobotCells(const Point po)
+void OccGrid::updateRobotCells(const Point po, double robot_radius)
 {
   int origin_cell = positionToIndex(po);
-  auto robot_cells = neighborIndices(origin_cell, 0.1);
+  auto robot_cells = neighborIndices(origin_cell, robot_radius);
   robot_cells.push_back(origin_cell);
   for (auto cell : robot_cells)
     data[cell] -= 5.0; // sufficiently high log-odds free value

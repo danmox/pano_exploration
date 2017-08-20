@@ -31,7 +31,7 @@ class AngleGrid : public OccGrid
     void insertMap(const OccupancyGridConstPtr&,
         const geometry_msgs::TransformStamped&);
 
-    virtual void updateRobotCells(const Point);
+    void updateRobotCells(const Point, double = 0.1);
 
     int angleIndex(double) const;
     virtual void insertScan(const sensor_msgs::LaserScanConstPtr&,

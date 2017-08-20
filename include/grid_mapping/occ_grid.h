@@ -32,7 +32,7 @@ class OccGrid : public GridBase
     virtual void update(const OccGrid*);
     virtual void update(const Point, const int, const int);
 
-    virtual void updateRobotCells(const Point);
+    void updateRobotCells(const Point, double = 0.1);
 
     void expandMap(const Point, const Point);
     /*
