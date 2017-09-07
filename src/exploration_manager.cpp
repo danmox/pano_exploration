@@ -397,12 +397,10 @@ int main(int argc, char** argv)
   goal_pose_pub = nh.advertise<csqmi_exploration::PanGoal>("goal_pose", 2);
 
   bool leader, ranging_radios;
-  int init_rl_before_pan;
   if (!pnh.getParam("tf_prefix", tf_prefix) ||
       !pnh.getParam("robot_id", robot_id) ||
       !pnh.getParam("leader", leader) ||
       !nh.getParam("/number_of_robots", number_of_robots) ||
-      !nh.getParam("/init_rl_before_pan", init_rl_before_pan) ||
       !nh.getParam("/ranging_radios", ranging_radios) ||
       !nh.getParam("/scan_range_min", scan_range_min) ||
       !nh.getParam("/scan_range_max", scan_range_max)) {
@@ -410,10 +408,6 @@ int main(int argc, char** argv)
     exit(EXIT_FAILURE);
   }
   ang_grid.frame_id = tf_prefix + "/map";
-
-  // initialize angle grid for planning
-  ang_grid.range_min = scan_range_min;
-  ang_grid.range_max = scan_range_max;
 
   vector<ros::Subscriber> coord_subs;
   for (int i = 1; i <= number_of_robots; ++i) {
@@ -425,6 +419,13 @@ int main(int argc, char** argv)
     coord_subs.push_back(nh.subscribe(robot_ns + "/goal_pose", 2, &goalPoseCB));
     coord_subs.push_back(nh.subscribe(robot_ns + "/pan_pose", 2, &panPoseCB));
   }
+
+  /*
+   * initialize angle grid for planning
+   */
+
+  ang_grid.range_min = scan_range_min;
+  ang_grid.range_max = scan_range_max;
 
   /*
    * Initialize action servers for panorama capture and navigation
@@ -461,6 +462,38 @@ int main(int argc, char** argv)
   for (int i = 5; i > 0; --i) {
     ROS_INFO("main(...): Beginning exploration in %d seconds...", i);
     countdown.sleep();
+  }
+
+  /*
+   * Perform calibration dance and initalize relative localization
+   */
+
+  int calibration_dance_points = 10;
+  for (int i = 0; i < calibration_dance_points; ++i) {
+    move_base_msgs::MoveBaseGoal dance_pt;
+    dance_pt.target_pose.header.stamp = ros::Time::now();
+    dance_pt.target_pose.header.frame_id = tf_prefix + "/map";
+
+    double angle = (rand()%100)*2*M_PI/100.0;
+    dance_pt.target_pose.pose.position.x = 0.75*cos(angle);
+    dance_pt.target_pose.pose.position.y = 0.75*sin(angle);
+    dance_pt.target_pose.pose.orientation.w = 1.0;
+
+    move_ac->sendGoal(dance_pt, &moveDoneCB, &moveActiveCB, &moveFeedbackCB);
+    move_ac->waitForResult();
+    ROS_INFO("[exploration_manager]: reached point %d of %d in calibration dance",
+        i, calibration_dance_points);
+  }
+
+  while (ros::ok()) {
+    csqmi_exploration::InitRelLocalization rl_msg;
+    rl_msg.request.id = robot_id;
+    init_client.call(rl_msg);
+    if (rl_msg.response.status)
+      break;
+    ROS_INFO("main(...): waiting for relative localization to initialize");
+    countdown.sleep();
+    ros::spinOnce();
   }
 
   /*
@@ -620,24 +653,6 @@ int main(int argc, char** argv)
     if (!move_base_succeeded) {
       ROS_INFO("main(...): Navigation failed. Restarting planning process.");
       continue;
-    }
-
-    /*
-     * if each robot has traveled a sufficient distance, initialize relative
-     * localization
-     */
-
-    if (ranging_radios && pan_count+1 == init_rl_before_pan) {
-      while (ros::ok()) {
-        csqmi_exploration::InitRelLocalization rl_msg;
-        rl_msg.request.id = robot_id;
-        init_client.call(rl_msg);
-        if (rl_msg.response.status)
-          break;
-        ROS_INFO("main(...): waiting for relative localization to initialize");
-        countdown.sleep();
-        ros::spinOnce();
-      }
     }
 
     /*
