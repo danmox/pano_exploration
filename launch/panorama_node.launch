@@ -10,8 +10,7 @@
     <arg name="camera_frame"/>
     <arg name="odom_frame"/>
 
-    <node pkg="panorama" type="panorama_node" name="panorama_action_server"
-      launch-prefix="gdb --args">
+    <node pkg="panorama" type="panorama_node" name="panorama_action_server">
         <remap from="odom"     to="wheel_odometry"/>
         <remap from="velocity" to="velocity_commands"/>
 
