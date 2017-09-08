@@ -397,9 +397,13 @@ int main(int argc, char** argv)
   goal_pose_pub = nh.advertise<csqmi_exploration::PanGoal>("goal_pose", 2);
 
   bool leader, ranging_radios;
+  int calibration_dance_points;
+  double dance_radius;
   if (!pnh.getParam("tf_prefix", tf_prefix) ||
       !pnh.getParam("robot_id", robot_id) ||
       !pnh.getParam("leader", leader) ||
+      !nh.getParam("/dance_points", calibration_dance_points) ||
+      !nh.getParam("/dance_radius", dance_radius) ||
       !nh.getParam("/number_of_robots", number_of_robots) ||
       !nh.getParam("/ranging_radios", ranging_radios) ||
       !nh.getParam("/scan_range_min", scan_range_min) ||
@@ -468,21 +472,20 @@ int main(int argc, char** argv)
    * Perform calibration dance and initalize relative localization
    */
 
-  int calibration_dance_points = 10;
   for (int i = 0; i < calibration_dance_points; ++i) {
     move_base_msgs::MoveBaseGoal dance_pt;
     dance_pt.target_pose.header.stamp = ros::Time::now();
     dance_pt.target_pose.header.frame_id = tf_prefix + "/map";
 
     double angle = (rand()%100)*2*M_PI/100.0;
-    dance_pt.target_pose.pose.position.x = 0.75*cos(angle);
-    dance_pt.target_pose.pose.position.y = 0.75*sin(angle);
+    dance_pt.target_pose.pose.position.x = dance_radius*cos(angle);
+    dance_pt.target_pose.pose.position.y = dance_radius*sin(angle);
     dance_pt.target_pose.pose.orientation.w = 1.0;
 
     move_ac->sendGoal(dance_pt, &moveDoneCB, &moveActiveCB, &moveFeedbackCB);
     move_ac->waitForResult();
     ROS_INFO("[exploration_manager]: reached point %d of %d in calibration dance",
-        i, calibration_dance_points);
+        i+1, calibration_dance_points);
   }
 
   while (ros::ok()) {
