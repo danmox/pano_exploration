@@ -36,13 +36,13 @@ Panorama::Panorama(ros::NodeHandle nh_, ros::NodeHandle pnh_, string name) :
   // set ROS verbosity level
   bool debug = false;
   if (!pnh.getParam("debug", debug))
-    ROS_WARN("Unable to fetch debugging parameter.");
+    ROS_WARN("[panorama] Unable to fetch debugging parameter.");
   if (debug) {
     if (rc::set_logger_level(ROSCONSOLE_DEFAULT_NAME, rc::levels::Debug)) {
       rc::notifyLoggerLevelsChanged();
-      ROS_INFO("Verbosity set to debug.");
+      ROS_INFO("[panorama] Verbosity set to debug.");
     } else {
-      ROS_ERROR("Failed to set verbosity!");
+      ROS_ERROR("[panorama] Failed to set verbosity!");
     }
   }
 
@@ -68,7 +68,7 @@ Panorama::Panorama(ros::NodeHandle nh_, ros::NodeHandle pnh_, string name) :
     !pnh.getParam("odom_frame", odom_frame) ||
     !pnh.getParam("save_directory", save_directory) ||
     !pnh.getParam("image_registration", image_registration)) {
-    ROS_FATAL("Panorama::Panorama(): failed to read params from server");
+    ROS_FATAL("[panorama] failed to read params from server");
     exit(EXIT_FAILURE);
   }
 
@@ -103,7 +103,7 @@ void Panorama::syncCB(const openni2_xtion::RGBDFramePtr& rgbd_msg,
   odom_ptr = odom;
   current_heading = constrainAngle(tf::getYaw(odom->pose.pose.orientation));
   /*
-  ROS_DEBUG("Panorama::syncCB(...): messages received with timestamp "
+  ROS_DEBUG("[panorama] messages received with timestamp "
       "difference: %f", fabs(rgbd_msg->header.stamp.toSec() - 
         odom->header.stamp.toSec()));
         */
@@ -111,7 +111,7 @@ void Panorama::syncCB(const openni2_xtion::RGBDFramePtr& rgbd_msg,
 
 void Panorama::preemptCB()
 {
-  ROS_INFO("%s: Preempted", action_server_name.c_str());
+  ROS_INFO("[panorama] %s: Preempted", action_server_name.c_str());
   as.setPreempted();
 }
 

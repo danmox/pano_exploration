@@ -95,8 +95,8 @@ void Panorama::getTrans(std::string dest_frame, std::string src_frame,
   try {
     trans = tf_buffer.lookupTransform(dest_frame, src_frame, t);
   } catch (tf2::TransformException &ex) {
-    ROS_ERROR("Panorama::fetchTrans(): error fetching transform from %s "
-            "to %s: %s", src_frame.c_str(), dest_frame.c_str(), ex.what());
+    ROS_ERROR("[panorama] error fetching transform from %s to %s: %s",
+        src_frame.c_str(), dest_frame.c_str(), ex.what());
     panorama::PanoramaResult result;
     as.setAborted(result);
     return;
