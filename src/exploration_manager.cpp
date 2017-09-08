@@ -477,6 +477,7 @@ int main(int argc, char** argv)
     dance_pt.target_pose.header.stamp = ros::Time::now();
     dance_pt.target_pose.header.frame_id = tf_prefix + "/map";
 
+    srand(time(NULL));
     double angle = (rand()%100)*2*M_PI/100.0;
     dance_pt.target_pose.pose.position.x = dance_radius*cos(angle);
     dance_pt.target_pose.pose.position.y = dance_radius*sin(angle);
