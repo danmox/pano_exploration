@@ -9,11 +9,23 @@
 
 namespace rc = ros::console;
 using namespace std;
+using namespace geometry_msgs;
 
 template <typename T> 
 int sgn(T val) 
 {
   return (T(0) < val) - (val < T(0));
+}
+
+PoseStamped transToPose(const TransformStamped& trans)
+{
+  PoseStamped pose;
+  pose.header = trans.header;
+  pose.pose.orientation = trans.transform.rotation;
+  pose.pose.position.x = trans.transform.translation.x;
+  pose.pose.position.y = trans.transform.translation.y;
+  pose.pose.position.z = trans.transform.translation.z;
+  return pose;
 }
 
 namespace panorama {
@@ -25,7 +37,7 @@ Panorama::Panorama(ros::NodeHandle nh_, ros::NodeHandle pnh_, string name) :
 {
   nh = nh_;
   pnh = pnh_;
-  vel_pub = nh.advertise<geometry_msgs::Twist>("velocity", 10);
+  vel_pub = nh.advertise<Twist>("velocity", 10);
 
   // register action server methods
   as.registerGoalCallback(bind(&Panorama::goalCB, this));
@@ -46,7 +58,7 @@ Panorama::Panorama(ros::NodeHandle nh_, ros::NodeHandle pnh_, string name) :
 
   // setup approximate time synchronizer for RGBDFrames and PoseStamped msgs
   typedef openni2_xtion::RGBDFramePtr RGBDPtr;
-  typedef geometry_msgs::PoseStampedConstPtr PosePtr;
+  typedef PoseStampedConstPtr PosePtr;
   auto rgbd_cb = std::bind(&openni2_xtion::TimeFilter<RGBDPtr,PosePtr>::t1CB, 
       &time_filter, std::placeholders::_1);
   auto sync_cb = std::bind(&Panorama::syncCB, this, std::placeholders::_1, 
@@ -102,7 +114,7 @@ double constrainAngle(double angle)
 // store pointers to color and depth images and the robot pose estimated by
 // laser slam and compute the current heading of the robot
 void Panorama::syncCB(const openni2_xtion::RGBDFramePtr& rgbd_msg, 
-                      const geometry_msgs::PoseStampedConstPtr& pose_msg)
+                      const PoseStampedConstPtr& pose_msg)
 {
   lock_guard<mutex> lock(data_mutex);
   rgbd_ptr = rgbd_msg;
@@ -151,7 +163,7 @@ double Panorama::headDiff(double goal_heading)
 // get the robot spinning at speed rad/s
 void Panorama::sendSpinCommand(double speed)
 {
-  geometry_msgs::Twist vel_cmd;
+  Twist vel_cmd;
   vel_cmd.angular.z = speed;
   vel_pub.publish(vel_cmd);
 }
@@ -182,9 +194,10 @@ void Panorama::captureLoop()
   bag.open(full_file_name.c_str(), rosbag::bagmode::Write);
 
   // save panorama pose
-  geometry_msgs::TransformStamped t_robot_world;
+  TransformStamped t_robot_world;
   getTrans(world_frame, robot_frame, ros::Time(0), t_robot_world);
-  bag.write("panorama_pose", ros::Time::now(), t_robot_world);
+  PoseStamped pano_pose = transToPose(t_robot_world);
+  bag.write("panorama_pose", pano_pose.header.stamp, pano_pose);
 
   // save camera info messages
   bag.write("color_camera_info", rgbd_ptr->color_info->header.stamp,
@@ -231,12 +244,14 @@ void Panorama::captureLoop()
       }
 
       // save camera pose
-      geometry_msgs::TransformStamped slam_camera_pose;
-      getTrans(world_frame, camera_frame, frame_stamp, slam_camera_pose);
-      bag.write("camera_pose", frame_stamp, slam_camera_pose);
+      TransformStamped camera_trans;
+      getTrans(world_frame, camera_frame, frame_stamp, camera_trans);
+      PoseStamped camera_pose = transToPose(camera_trans);
+      bag.write("camera_pose", camera_pose.header.stamp, camera_pose);
 
+      // update the total angular displacement since robot started pano
       double this_frame_heading;
-      this_frame_heading = tf::getYaw(slam_camera_pose.transform.rotation);
+      this_frame_heading = tf::getYaw(camera_trans.transform.rotation);
       this_frame_heading = constrainAngle(this_frame_heading);
       total_turn += constrainAngle(this_frame_heading - last_frame_heading);
       last_frame_heading = this_frame_heading;
