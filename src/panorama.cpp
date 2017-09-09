@@ -213,7 +213,8 @@ void Panorama::captureLoop()
     if (!continuous_capture) {
       capture_frame = sgn(headDiff(capture_angles[frame])) != sgn(spin_speed);
     } else {
-      capture_frame = -sgn(spin_speed)*headDiff(last_frame_heading) > 1e-4;
+      // in continuous mode, only capture frames when robot is turning
+      capture_frame = -sgn(spin_speed)*headDiff(last_frame_heading) > 0.01;
     }
 
     // save data if the robot has reached the desired frame heading
