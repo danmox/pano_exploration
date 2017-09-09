@@ -60,14 +60,15 @@ Panorama::Panorama(ros::NodeHandle nh_, ros::NodeHandle pnh_, string name) :
   bool image_registration, camera_auto_settings;
   int exposure;
   if (!pnh.getParam("spin_speed", spin_speed) ||
-    !pnh.getParam("number_of_frames", number_of_frames) ||
-    !pnh.getParam("world_frame", world_frame) ||
-    !pnh.getParam("camera_frame", camera_frame) ||
-    !pnh.getParam("robot_frame", robot_frame) ||
-    !pnh.getParam("save_directory", save_directory) ||
-    !pnh.getParam("exposure", exposure) ||
-    !pnh.getParam("camera_auto_settings", camera_auto_settings) ||
-    !pnh.getParam("image_registration", image_registration)) {
+      !pnh.getParam("number_of_frames", number_of_frames) ||
+      !pnh.getParam("continuous_capture", continuous_capture) ||
+      !pnh.getParam("world_frame", world_frame) ||
+      !pnh.getParam("camera_frame", camera_frame) ||
+      !pnh.getParam("robot_frame", robot_frame) ||
+      !pnh.getParam("save_directory", save_directory) ||
+      !pnh.getParam("exposure", exposure) ||
+      !pnh.getParam("camera_auto_settings", camera_auto_settings) ||
+      !pnh.getParam("image_registration", image_registration)) {
     ROS_FATAL("[panorama] failed to read params from server");
     exit(EXIT_FAILURE);
   }
@@ -137,7 +138,7 @@ void Panorama::goalCB()
 // compute the difference between goal_heading and the robot's current heading
 // as reported by wheel odometry (wheel odometry yields the most accurate 
 // heading estimate over 2pi)
-double Panorama::headingDifference(double goal_heading)
+double Panorama::headDiff(double goal_heading)
 {
   double diff;
   {
@@ -168,10 +169,12 @@ void Panorama::captureLoop()
     lock_guard<mutex> lock(data_mutex);
     start_angle = current_heading;
   }
-  double d_angle = sgn(spin_speed)*2.0*M_PI/((double)number_of_frames);
   vector<double> capture_angles(number_of_frames, start_angle);
-  for (int i = 0; i < capture_angles.size(); ++i)
-    capture_angles[i] = constrainAngle(capture_angles[i] + i*d_angle);
+  if (!continuous_capture) {
+    double d_angle = sgn(spin_speed)*2.0*M_PI/((double)number_of_frames);
+    for (int i = 0; i < capture_angles.size(); ++i)
+      capture_angles[i] = constrainAngle(capture_angles[i] + i*d_angle);
+  }
 
   // open bag
   string full_file_name = save_directory + '/' + file_name + ".bag";
@@ -192,7 +195,9 @@ void Panorama::captureLoop()
   // capture panorama frames
   ros::Rate loop_rate(30);
   int frame = 1;
-  while (frame <= number_of_frames) {
+  double last_frame_heading = current_heading, total_turn = 0.0;
+  bool complete = false;
+  while (!complete) {
 
     // check if action has been cancelled
     if (!as.isActive() || as.isPreemptRequested()) {
@@ -204,8 +209,15 @@ void Panorama::captureLoop()
     // publish velocity command
     sendSpinCommand(spin_speed);
 
+    bool capture_frame = false;
+    if (!continuous_capture) {
+      capture_frame = sgn(headDiff(capture_angles[frame])) != sgn(spin_speed);
+    } else {
+      capture_frame = -sgn(spin_speed)*headDiff(last_frame_heading) > 1e-4;
+    }
+
     // save data if the robot has reached the desired frame heading
-    if (sgn(headingDifference(capture_angles[frame])) != sgn(spin_speed)) {
+    if (capture_frame) {
       
       // fetch synchornized sensor data
       ros::Time frame_stamp;
@@ -222,9 +234,21 @@ void Panorama::captureLoop()
       getTrans(world_frame, camera_frame, frame_stamp, slam_camera_pose);
       bag.write("camera_pose", frame_stamp, slam_camera_pose);
 
+      double this_frame_heading;
+      this_frame_heading = tf::getYaw(slam_camera_pose.transform.rotation);
+      this_frame_heading = constrainAngle(this_frame_heading);
+      total_turn += constrainAngle(this_frame_heading - last_frame_heading);
+      last_frame_heading = this_frame_heading;
+
       panorama::PanoramaFeedback feedback;
       feedback.frames_captured = frame++;
       as.publishFeedback(feedback);
+
+      if (!continuous_capture) {
+        complete = frame <= number_of_frames;
+      } else {
+        complete = total_turn > sgn(spin_speed)*2.0*M_PI;
+      }
     }
 
     loop_rate.sleep();

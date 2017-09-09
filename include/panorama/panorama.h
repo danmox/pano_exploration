@@ -43,6 +43,7 @@ class Panorama
     tf2_ros::TransformListener listener;
     std::string world_frame, camera_frame, robot_frame;
 
+    bool continuous_capture;
     double spin_speed, current_heading;
     int number_of_frames;
     std::string save_directory, file_name;
@@ -56,7 +57,7 @@ class Panorama
 
     // compute the difference between the input angle and the current
     // heading of the robot, respecting (-pi, pi]
-    double headingDifference(double);
+    double headDiff(double);
 
     // create and publish a geometry_msgs::Twist velocity command to the 
     // robot with angular velocity about z set to the input

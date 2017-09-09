@@ -3,6 +3,7 @@
     <arg name="debug"                 default="false"/>
     <arg name="spin_speed"            default="0.25"/>
     <arg name="number_of_frames"      default="72"/>
+    <arg name="continuous_capture"    default="true"/>
     <arg name="save_directory"        default="$(env HOME)/.ros/panoramas"/>
     <arg name="image_registration"    default="true"/>
     <arg name="camera_auto_settings"  default="false"/>
@@ -25,6 +26,7 @@
         <param name="image_registration"    value="$(arg image_registration)"/>
         <param name="camera_auto_settings"  value="$(arg camera_auto_settings)"/>
         <param name="exposure"              value="$(arg exposure)"/>
+        <param name="continuous_capture"    value="$(arg continuous_capture)"/>
     </node>
 
 </launch>
