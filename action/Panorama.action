@@ -5,4 +5,4 @@ string file_name
 string full_file_name
 ---
 # feedback
-uint8 frames_captured
+uint16 frames_captured
