@@ -12,11 +12,8 @@
 #include <tf2_kdl/tf2_kdl.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 
-#include <geometry_msgs/Twist.h>
-#include <geometry_msgs/Pose2D.h>
+#include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/TransformStamped.h>
-#include <nav_msgs/Odometry.h>
-#include <sensor_msgs/Image.h>
 #include <panorama/PanoramaAction.h>
 
 #include <thread>
@@ -30,12 +27,12 @@ class Panorama
   private:
     ros::NodeHandle nh, pnh;
     ros::Publisher vel_pub;
-    ros::Subscriber odom_sub;
+    ros::Subscriber pose_sub;
 
-    // syncronize color, depth images with odometry
+    // syncronize color, depth images with the pose from SLAM
     openni2_xtion::RGBDSensor xtion;
     openni2_xtion::TimeFilter<openni2_xtion::RGBDFramePtr, 
-      nav_msgs::OdometryConstPtr> time_filter;
+      geometry_msgs::PoseStampedConstPtr> time_filter;
 
     // actionlib
     actionlib::SimpleActionServer<panorama::PanoramaAction> as;
@@ -44,14 +41,14 @@ class Panorama
     // tf2
     tf2_ros::Buffer tf_buffer;
     tf2_ros::TransformListener listener;
-    std::string world_frame, camera_frame, robot_frame, odom_frame;
+    std::string world_frame, camera_frame, robot_frame;
 
     double spin_speed, current_heading;
     int number_of_frames;
     std::string save_directory, file_name;
 
     // sensor data
-    nav_msgs::Odometry::ConstPtr odom_ptr;
+    geometry_msgs::PoseStampedConstPtr pose_ptr;
     openni2_xtion::RGBDFramePtr rgbd_ptr;
     std::mutex data_mutex;
 
@@ -74,9 +71,8 @@ class Panorama
   public:
     Panorama(ros::NodeHandle, ros::NodeHandle, std::string);
 
-    void poseCB(const geometry_msgs::Pose2D::ConstPtr&);
     void syncCB(const openni2_xtion::RGBDFramePtr&, 
-                const nav_msgs::Odometry::ConstPtr&);
+                const geometry_msgs::PoseStamped::ConstPtr&);
     void goalCB();
     void preemptCB();
 

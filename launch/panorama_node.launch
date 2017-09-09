@@ -8,10 +8,9 @@
     <arg name="world_frame"/>
     <arg name="robot_frame"/>
     <arg name="camera_frame"/>
-    <arg name="odom_frame"/>
 
     <node pkg="panorama" type="panorama_node" name="panorama_action_server">
-        <remap from="odom"     to="wheel_odometry"/>
+        <remap from="pose"     to="slam_pose"/>
         <remap from="velocity" to="velocity_commands"/>
 
         <param name="debug"               value="$(arg debug)"/>
@@ -21,7 +20,6 @@
         <param name="world_frame"         value="$(arg world_frame)"/>
         <param name="camera_frame"        value="$(arg camera_frame)"/>
         <param name="robot_frame"         value="$(arg robot_frame)"/>
-        <param name="odom_frame"          value="$(arg odom_frame)"/>
         <param name="image_registration"  value="$(arg image_registration)"/>
     </node>
 

@@ -1,9 +1,7 @@
 #include "panorama/panorama.h"
 
+#include <geometry_msgs/Twist.h>
 #include <tf/transform_datatypes.h>
-#include <geometry_msgs/Point.h>
-#include <geometry_msgs/Quaternion.h>
-#include <std_msgs/Header.h>
 #include <ros/console.h>
 #include <rosbag/bag.h>
 #include <stdlib.h>
@@ -46,15 +44,15 @@ Panorama::Panorama(ros::NodeHandle nh_, ros::NodeHandle pnh_, string name) :
     }
   }
 
-  // setup approximate time synchronizer for RGBDFrames and Odometry msgs
+  // setup approximate time synchronizer for RGBDFrames and PoseStamped msgs
   typedef openni2_xtion::RGBDFramePtr RGBDPtr;
-  typedef nav_msgs::OdometryConstPtr OdomPtr;
-  auto rgbd_cb = std::bind(&openni2_xtion::TimeFilter<RGBDPtr,OdomPtr>::t1CB, 
+  typedef geometry_msgs::PoseStampedConstPtr PosePtr;
+  auto rgbd_cb = std::bind(&openni2_xtion::TimeFilter<RGBDPtr,PosePtr>::t1CB, 
       &time_filter, std::placeholders::_1);
   auto sync_cb = std::bind(&Panorama::syncCB, this, std::placeholders::_1, 
       std::placeholders::_2);
-  odom_sub = nh.subscribe("odom", 10, 
-      &openni2_xtion::TimeFilter<RGBDPtr,OdomPtr>::t2CB, &time_filter); 
+  pose_sub = nh.subscribe("pose", 10, 
+      &openni2_xtion::TimeFilter<RGBDPtr,PosePtr>::t2CB, &time_filter); 
   xtion.registerCallback(rgbd_cb);
   time_filter.registerCallback(sync_cb);
 
@@ -65,7 +63,6 @@ Panorama::Panorama(ros::NodeHandle nh_, ros::NodeHandle pnh_, string name) :
     !pnh.getParam("world_frame", world_frame) ||
     !pnh.getParam("camera_frame", camera_frame) ||
     !pnh.getParam("robot_frame", robot_frame) ||
-    !pnh.getParam("odom_frame", odom_frame) ||
     !pnh.getParam("save_directory", save_directory) ||
     !pnh.getParam("image_registration", image_registration)) {
     ROS_FATAL("[panorama] failed to read params from server");
@@ -93,15 +90,14 @@ double constrainAngle(double angle)
 }
 
 // store pointers to color and depth images and the robot pose estimated by
-// wheel odometry and compute the current heading of the robot as reported 
-// by wheel odometry
+// laser slam and compute the current heading of the robot
 void Panorama::syncCB(const openni2_xtion::RGBDFramePtr& rgbd_msg, 
-                      const nav_msgs::OdometryConstPtr& odom)
+                      const geometry_msgs::PoseStampedConstPtr& pose_msg)
 {
   lock_guard<mutex> lock(data_mutex);
   rgbd_ptr = rgbd_msg;
-  odom_ptr = odom;
-  current_heading = constrainAngle(tf::getYaw(odom->pose.pose.orientation));
+  pose_ptr = pose_msg;
+  current_heading = constrainAngle(tf::getYaw(pose_msg->pose.orientation));
   /*
   ROS_DEBUG("[panorama] messages received with timestamp "
       "difference: %f", fabs(rgbd_msg->header.stamp.toSec() - 
@@ -178,19 +174,15 @@ void Panorama::captureLoop()
   getTrans(world_frame, robot_frame, ros::Time(0), t_robot_world);
   bag.write("panorama_pose", ros::Time::now(), t_robot_world);
 
-  // cache the transform between the odom_frame and the world_frame
-  // since SLAM may update during panorama capture (which would introduce
-  // and unwanted jump in the camera pose between frames)
-  geometry_msgs::TransformStamped ts_odom_world, ts_camera_robot;
-  getTrans(world_frame, odom_frame, ros::Time(0), ts_odom_world);
-  getTrans(robot_frame, camera_frame, ros::Time(0), ts_camera_robot);
-  KDL::Frame t_odom_world = tf2::transformToKDL(ts_odom_world);
-  KDL::Frame t_camera_robot = tf2::transformToKDL(ts_camera_robot);
+  // save camera info messages
+  bag.write("color_camera_info", rgbd_ptr->color_info->header.stamp,
+      rgbd_ptr->color_info);
+  bag.write("depth_camera_info", rgbd_ptr->depth_info->header.stamp,
+      rgbd_ptr->depth_info);
 
   // capture panorama frames
   ros::Rate loop_rate(30);
   int frame = 1;
-  bool saved_camera_info = false;
   while (frame <= number_of_frames) {
 
     // check if action has been cancelled
@@ -207,47 +199,19 @@ void Panorama::captureLoop()
     if (sgn(headingDifference(capture_angles[frame])) != sgn(spin_speed)) {
       
       // fetch synchornized sensor data
-      geometry_msgs::Point pt;
-      geometry_msgs::Quaternion qt;
-      std_msgs::Header hd;
+      ros::Time frame_stamp;
       {
         lock_guard<mutex> lock(data_mutex);
-        // camera info doesn't change and need only be saved once
-        if (!saved_camera_info) {
-          bag.write("color_camera_info", rgbd_ptr->color_info->header.stamp,
-              rgbd_ptr->color_info);
-          bag.write("depth_camera_info", rgbd_ptr->depth_info->header.stamp,
-              rgbd_ptr->depth_info);
-          saved_camera_info = true;
-        }
-
         // save image data to bag
         bag.write("color", rgbd_ptr->color->header.stamp, rgbd_ptr->color);
         bag.write("depth", rgbd_ptr->depth->header.stamp, rgbd_ptr->depth);
-        pt = odom_ptr->pose.pose.position;
-        qt = odom_ptr->pose.pose.orientation;
-        hd = odom_ptr->header;
+        frame_stamp = pose_ptr->header.stamp;
       }
 
-      // convert odom message to KDL::Frame
-      KDL::Vector trans(pt.x, pt.y, pt.z);
-      KDL::Rotation quat = KDL::Rotation::Quaternion(qt.x, qt.y, qt.z, qt.w);
-      KDL::Frame t_robot_odom(quat, trans);
-
-      // compute transform from camera to world_frame, convert it to a 
-      // geometry_msgs::PoseStamped message and save it to the bag
-      KDL::Frame t_cam_world = t_odom_world*t_robot_odom*t_camera_robot;
-      tf2::Stamped<KDL::Frame> t_stamped(t_cam_world, hd.stamp, world_frame);
-      geometry_msgs::PoseStamped camera_pose;
-      tf2::convert(t_stamped, camera_pose);
-      camera_pose.header = hd;
-      camera_pose.header.frame_id = world_frame;
-      bag.write("camera_pose", hd.stamp, camera_pose);
-
-      // also save the pose from slam since odom isn't always reliable
+      // save camera pose
       geometry_msgs::TransformStamped slam_camera_pose;
-      getTrans(world_frame, camera_frame, hd.stamp, slam_camera_pose);
-      bag.write("slam_camera_pose", hd.stamp, slam_camera_pose);
+      getTrans(world_frame, camera_frame, frame_stamp, slam_camera_pose);
+      bag.write("camera_pose", frame_stamp, slam_camera_pose);
 
       panorama::PanoramaFeedback feedback;
       feedback.frames_captured = frame++;
