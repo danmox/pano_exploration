@@ -70,25 +70,31 @@ int main(int argc, char** argv)
 
   int frame_idx = 0;
   int imgs = combined_imgs.size();
+  int saved_frames = 0;
   cv::imshow("Panorama Frames", combined_imgs[frame_idx]);
   while (true) {
     char key = (char)cv::waitKey(30);
     if (key == 27) break;
-    if (key == 106) {
+    if (key == 'j') {
       if (frame_idx < imgs-1) ++frame_idx;
       cv::imshow("Panorama Frames", combined_imgs[frame_idx]);
     }
-    if (key == 107) {
+    if (key == 'k') {
       if (frame_idx > 0) --frame_idx;
       cv::imshow("Panorama Frames", combined_imgs[frame_idx]);
     }
-    if (key == 102) {
+    if (key == 'f') {
       cv::imshow("Panorama Frames", combined_imgs.front());
       frame_idx = 0;
     }
-    if (key == 108) {
+    if (key == 'l') {
       cv::imshow("Panorama Frames", combined_imgs.back());
       frame_idx = imgs-1;
+    }
+    if (key == 's') {
+      std::string filename = "image" + std::to_string(++saved_frames) + ".jpg";
+      cv::imwrite(filename, color_imgs[frame_idx]);
+      ROS_INFO("Wrote color image to file: %s", filename.c_str());
     }
   }
 
