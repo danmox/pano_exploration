@@ -3,8 +3,9 @@
   <arg name="camera" default="xtion"/>
   <arg name="ranging_radio" default="true"/>
   <arg name="radio_id"/>
-  <arg name="tf_prefix"/>
   <arg name="robot_id"/>
+  <arg name="robot_ip" default=""/>
+  <arg name="tf_prefix"/>
   <arg name="leader"/>
 
   <group ns="$(arg tf_prefix)">
@@ -12,13 +13,18 @@
     <!-- Launch robot components -->
     <include file="$(find robot_io)/launch/robot.launch">
       <arg name="camera"            value="$(arg camera)"/>
-      <arg name="camera_tf_frames"  value="true"/>
       <arg name="hokuyo"            value="true"/>
       <arg name="odometry"          value="true"/>
       <arg name="slam"              value="true"/>
       <arg name="tf_prefix"         value="$(arg tf_prefix)"/>
       <arg name="pulson"            value="$(arg ranging_radio)"/>
       <arg name="radio_id"          value="$(arg radio_id)"/>
+    </include>
+
+    <!-- launch camera tf static frames -->
+    <include file="$(find robot_io)/launch/xtion_frames$(arg robot_ip).launch">
+      <arg name="camera"    value="$(arg camera)" />
+      <arg name="tf_prefix" value="$(arg tf_prefix)" />
     </include>
 
     <!-- panorama nodelet -->
