@@ -414,14 +414,16 @@ int main(int argc, char** argv)
   ang_grid.frame_id = tf_prefix + "/map";
 
   vector<ros::Subscriber> coord_subs;
-  for (int i = 1; i <= number_of_robots; ++i) {
-    if (i == robot_id)
-      continue;
+  if (number_of_robots > 1) {
+    for (int i = 1; i <= number_of_robots; ++i) {
+      if (i == robot_id)
+        continue;
 
-    string robot_ns = "/robot" + std::to_string(i);
-    coord_subs.push_back(nh.subscribe(robot_ns + "/angle_grid", 2, &mapCB));
-    coord_subs.push_back(nh.subscribe(robot_ns + "/goal_pose", 2, &goalPoseCB));
-    coord_subs.push_back(nh.subscribe(robot_ns + "/pan_pose", 2, &panPoseCB));
+      string robot_ns = "/robot" + std::to_string(i);
+      coord_subs.push_back(nh.subscribe(robot_ns + "/angle_grid", 2, &mapCB));
+      coord_subs.push_back(nh.subscribe(robot_ns + "/goal_pose", 2, &goalPoseCB));
+      coord_subs.push_back(nh.subscribe(robot_ns + "/pan_pose", 2, &panPoseCB));
+    }
   }
 
   /*
