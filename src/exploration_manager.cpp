@@ -474,32 +474,34 @@ int main(int argc, char** argv)
    * Perform calibration dance and initalize relative localization
    */
 
-  for (int i = 0; i < calibration_dance_points; ++i) {
-    move_base_msgs::MoveBaseGoal dance_pt;
-    dance_pt.target_pose.header.stamp = ros::Time::now();
-    dance_pt.target_pose.header.frame_id = tf_prefix + "/map";
+  if (ranging_radios) {
+    for (int i = 0; i < calibration_dance_points; ++i) {
+      move_base_msgs::MoveBaseGoal dance_pt;
+      dance_pt.target_pose.header.stamp = ros::Time::now();
+      dance_pt.target_pose.header.frame_id = tf_prefix + "/map";
 
-    srand(time(NULL));
-    double angle = (rand()%100)*2*M_PI/100.0;
-    dance_pt.target_pose.pose.position.x = dance_radius*cos(angle);
-    dance_pt.target_pose.pose.position.y = dance_radius*sin(angle);
-    dance_pt.target_pose.pose.orientation.w = 1.0;
+      srand(time(NULL));
+      double angle = (rand()%100)*2*M_PI/100.0;
+      dance_pt.target_pose.pose.position.x = dance_radius*cos(angle);
+      dance_pt.target_pose.pose.position.y = dance_radius*sin(angle);
+      dance_pt.target_pose.pose.orientation.w = 1.0;
 
-    move_ac->sendGoal(dance_pt, &moveDoneCB, &moveActiveCB, &moveFeedbackCB);
-    move_ac->waitForResult();
-    ROS_INFO("[exploration_manager]: reached point %d of %d in calibration dance",
-        i+1, calibration_dance_points);
-  }
+      move_ac->sendGoal(dance_pt, &moveDoneCB, &moveActiveCB, &moveFeedbackCB);
+      move_ac->waitForResult();
+      ROS_INFO("[exploration_manager]: reached point %d of %d in calibration dance",
+          i+1, calibration_dance_points);
+    }
 
-  while (ros::ok()) {
-    csqmi_exploration::InitRelLocalization rl_msg;
-    rl_msg.request.id = robot_id;
-    init_client.call(rl_msg);
-    if (rl_msg.response.status)
-      break;
-    ROS_INFO("main(...): waiting for relative localization to initialize");
-    countdown.sleep();
-    ros::spinOnce();
+    while (ros::ok()) {
+      csqmi_exploration::InitRelLocalization rl_msg;
+      rl_msg.request.id = robot_id;
+      init_client.call(rl_msg);
+      if (rl_msg.response.status)
+        break;
+      ROS_INFO("main(...): waiting for relative localization to initialize");
+      countdown.sleep();
+      ros::spinOnce();
+    }
   }
 
   /*
