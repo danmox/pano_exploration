@@ -71,19 +71,19 @@ std::shared_ptr<MoveAC> move_ac;
 
 void panFeedbackCB(const panorama::PanoramaFeedbackConstPtr& feedback)
 {
-  //ROS_INFO("panFeedbackCB(...): Captured frame %d of 72",
-  //    feedback->frames_captured);
+  ROS_INFO("[exploration_manager]: frames captured: %d",
+      feedback->frames_captured);
 }
 
 void panActiveCB()
 {
-  ROS_INFO("panActiveCB(): Capturing panorama...");
+  ROS_INFO("[exploration_manager]: Capturing panorama...");
 }
 
 void panDoneCB(const actionlib::SimpleClientGoalState& state,
     const panorama::PanoramaResultConstPtr& result)
 {
-  ROS_INFO("panDoneCB(...): Panorama completed with %s and saved to %s",
+  ROS_INFO("[exploration_manager]: Panorama completed with %s and saved to %s",
       state.toString().c_str(), result->full_file_name.c_str());
   if (state.toString().compare("SUCCEEDED") == 0)
     pan_file = result->full_file_name;
@@ -99,13 +99,13 @@ void moveFeedbackCB(const move_base_msgs::MoveBaseFeedbackConstPtr& msg)
 
 void moveActiveCB()
 {
-  ROS_INFO("moveActionCB(): Navigating to goal...");
+  ROS_INFO("[exploration_manager]: Navigating to goal...");
 }
 
 void moveDoneCB(const actionlib::SimpleClientGoalState& state,
     const move_base_msgs::MoveBaseResultConstPtr& result)
 {
-  ROS_INFO("moveDoneCB(...): Navigation completed with status: %s",
+  ROS_INFO("[exploration_manager]: Navigation completed with status: %s",
       state.toString().c_str());
   if (state != actionlib::SimpleClientGoalState::StateEnum::SUCCEEDED) {
     move_base_succeeded = false;
@@ -182,7 +182,7 @@ bool getTrans(string source_frame, geometry_msgs::TransformStamped& trans)
     trans = tfBuffer.lookupTransform(my_frame, source_frame, ros::Time(0));
     res = true;
   } catch (tf2::TransformException &ex) {
-    ROS_WARN("getTrans(...): %s failed to fetch transform:\n%s",
+    ROS_WARN("[exploration_manager]: %s failed to fetch transform:\n%s",
         tf_prefix.c_str(), ex.what());
   }
   return res;
@@ -199,16 +199,16 @@ void mapCB(const grid_mapping::OccupancyGridConstPtr& msg)
     if (getTrans(grid.header.frame_id, tfs)) {
       grid_mapping::OccupancyGridConstPtr cpt(new grid_mapping::OccupancyGrid(grid));
       ang_grid.insertMap(msg, tfs);
-      ROS_INFO("mapCB(...): %s inserted map with frame_id %s", tf_prefix.c_str(),
-          msg->header.frame_id.c_str());
+      ROS_INFO("[exploration_manager]: %s inserted map with frame_id %s",
+          tf_prefix.c_str(), msg->header.frame_id.c_str());
       viz_map_pub.publish(ang_grid.createROSOGMsg());
     } else {
-      ROS_WARN("mapCB(...): %s failed to insert map with frame_id %s",
-          tf_prefix.c_str(), msg->header.frame_id.c_str());
+      ROS_WARN("[exploration_manager]: %s failed to insert map with frame_id "
+          "%s", tf_prefix.c_str(), msg->header.frame_id.c_str());
       return;
     }
   }
-  ROS_INFO("mapCB(...): processed %d messages in msgs_to_process",
+  ROS_INFO("[exploration_manager]: processed %d messages in msgs_to_process",
       (int)msgs_to_process.size());
   msgs_to_process.clear();
 }
@@ -229,15 +229,15 @@ void goalPoseCB(const csqmi_exploration::PanGoalConstPtr& msg)
       goal_pair.point = pt;
       goal_pair.id = goal_msg.goal_id;
       goals.push_back(goal_pair);
-      ROS_INFO("goalPoseCB(...): %s added goal pose with id %d to goals",
+      ROS_INFO("[exploration_manager]: %s added goal pose with id %d to goals",
           tf_prefix.c_str(), goal_pair.id);
     } else {
-      ROS_WARN("goalPoseCB(...): %s failed to add goal pose with ID %d to goals",
-          tf_prefix.c_str(), goal_msg.goal_id);
+      ROS_WARN("[exploration_manager]: %s failed to add goal pose with ID %d to"
+          "goals", tf_prefix.c_str(), goal_msg.goal_id);
       return;
     }
   }
-  ROS_INFO("goalPoseCB(...): processed %d messages in msgs_to_process",
+  ROS_INFO("[exploration_manager]: processed %d messages in msgs_to_process",
       (int)msgs_to_process.size());
   msgs_to_process.clear();
 }
@@ -254,7 +254,7 @@ void panPoseCB(const csqmi_exploration::PanGoalConstPtr& msg)
       grid_mapping::Point in_pt(pan_msg.x, pan_msg.y);
       grid_mapping::Point pt = grid_mapping::Point::transformPoint(tfs, in_pt);
       pan_locations.push_back(pt);
-      ROS_INFO("panPoseCB(...): %s added panorama pose with id %d to "
+      ROS_INFO("[exploration_manager]: %s added panorama pose with id %d to "
           "pan_locations", tf_prefix.c_str(), id);
 
       if (goals.size() == 0)
@@ -263,25 +263,26 @@ void panPoseCB(const csqmi_exploration::PanGoalConstPtr& msg)
       for (int i = 0; i < goals.size(); ++i) {
         if (goals[i].id == id) {
           goals.erase(goals.begin()+i);
-          ROS_INFO("panPoseCB(...): %s found goal and panorama with matching id: "
-              "%d", tf_prefix.c_str(), id);
+          ROS_INFO("[exploration_manager]: %s found goal and panorama with "
+              "matching id: %d", tf_prefix.c_str(), id);
           return;
         }
       }
 
-      ROS_INFO("panPoseCB(...): %s found no matching goal for panorama with id: "
-          "%d", tf_prefix.c_str(), id);
+      ROS_INFO("[exploration_manager]: %s found no matching goal for panorama "
+          "with id: %d", tf_prefix.c_str(), id);
       std::stringstream ss;
       for (int i = 0; i < goals.size()-1; ++i) { ss << goals[i].id << ", "; }
       ss << goals.back().id;
       string id_str = ss.str();
-      ROS_INFO("panPoseCB(...): current list of goal ids is: %s", id_str.c_str());
+      ROS_INFO("[exploration_manager]: current list of goal ids is: %s", 
+          id_str.c_str());
     } else {
-      ROS_INFO("panPoseCB(...): %s failed to add panorama with ID %d to captured "
-          "panorama list", tf_prefix.c_str(), pan_msg.goal_id);
+      ROS_INFO("[exploration_manager]: %s failed to add panorama with ID %d to"
+          "captured panorama list", tf_prefix.c_str(), pan_msg.goal_id);
     }
   }
-  ROS_INFO("panPoseCB(...): processed %d messages in msgs_to_process",
+  ROS_INFO("[exploration_manager]: processed %d messages in msgs_to_process",
       (int)msgs_to_process.size());
   msgs_to_process.clear();
 }
@@ -302,7 +303,7 @@ bool capturePanorama()
   pan_ac->sendGoal(pan_goal, &panDoneCB, &panActiveCB, &panFeedbackCB);
   pan_ac->waitForResult();
   if (pan_file.size() == 0) {
-    ROS_WARN("capturePanorama(): Panorama action returned no file");
+    ROS_WARN("[exploration_manager]: Panorama action returned no file");
     --pan_count;
     return false;
   }
@@ -360,7 +361,7 @@ bool capturePanorama()
       pan_pose_msg.x = msg->transform.translation.x;
       pan_pose_msg.y = msg->transform.translation.y;
       pan_pose_pub.publish(pan_pose_msg);
-      ROS_INFO("capturePanorama(): %s published panorama pose with id %d",
+      ROS_INFO("[exploration_manager]: %s published panorama pose with id %d",
           tf_prefix.c_str(), pan_pose_msg.goal_id);
       break;
     }
@@ -408,7 +409,7 @@ int main(int argc, char** argv)
       !nh.getParam("/ranging_radios", ranging_radios) ||
       !nh.getParam("/scan_range_min", scan_range_min) ||
       !nh.getParam("/scan_range_max", scan_range_max)) {
-    ROS_FATAL("main(...): failed to read params from server");
+    ROS_FATAL("[exploration_manager]: failed to read params from server");
     exit(EXIT_FAILURE);
   }
   ang_grid.frame_id = tf_prefix + "/map";
@@ -439,25 +440,25 @@ int main(int argc, char** argv)
 
   string pan_server_name = "/" + tf_prefix + "/panorama_action_server";
   pan_ac.reset(new PanAC(pan_server_name.c_str(), true));
-  ROS_INFO("main(...): Waiting for action server to start: %s",
+  ROS_INFO("[exploration_manager]: Waiting for action server to start: %s",
       pan_server_name.c_str());
   pan_ac->waitForServer();
-  ROS_INFO("main(...): %s is ready", pan_server_name.c_str());
+  ROS_INFO("[exploration_manager]: %s is ready", pan_server_name.c_str());
 
   string nav_server_name = "/" + tf_prefix + "/move_base";
   move_ac.reset(new MoveAC(nav_server_name.c_str(), true));
-  ROS_INFO("main(...): Waiting for action server to start: %s",
+  ROS_INFO("[exploration_manager]: Waiting for action server to start: %s",
       nav_server_name.c_str());
   move_ac->waitForServer();
-  ROS_INFO("main(...): %s is ready", nav_server_name.c_str());
+  ROS_INFO("[exploration_manager]: %s is ready", nav_server_name.c_str());
 
   ros::ServiceClient init_client;
   if (ranging_radios) {
     std::string init_name = "/init_relative_localization";
     init_client = nh.serviceClient<csqmi_exploration::InitRelLocalization>(init_name);
-    ROS_INFO("main(...): waiting for %s service server", init_name.c_str());
+    ROS_INFO("[exploration_manager]: waiting for %s service server", init_name.c_str());
     init_client.waitForExistence();
-    ROS_INFO("main(...): %s service server ready", init_name.c_str());
+    ROS_INFO("[exploration_manager]: %s service server ready", init_name.c_str());
   }
 
   /*
@@ -466,7 +467,7 @@ int main(int argc, char** argv)
 
   ros::Rate countdown(1);
   for (int i = 5; i > 0; --i) {
-    ROS_INFO("main(...): Beginning exploration in %d seconds...", i);
+    ROS_INFO("[exploration_manager]: Beginning exploration in %d seconds...", i);
     countdown.sleep();
   }
 
@@ -488,8 +489,8 @@ int main(int argc, char** argv)
 
       move_ac->sendGoal(dance_pt, &moveDoneCB, &moveActiveCB, &moveFeedbackCB);
       move_ac->waitForResult();
-      ROS_INFO("[exploration_manager]: reached point %d of %d in calibration dance",
-          i+1, calibration_dance_points);
+      ROS_INFO("[exploration_manager]: reached point %d of %d in calibration "
+          "dance", i+1, calibration_dance_points);
     }
 
     while (ros::ok()) {
@@ -498,7 +499,7 @@ int main(int argc, char** argv)
       init_client.call(rl_msg);
       if (rl_msg.response.status)
         break;
-      ROS_INFO("main(...): waiting for relative localization to initialize");
+      ROS_INFO("[exploration_manager]: waiting for relative localization to initialize");
       countdown.sleep();
       ros::spinOnce();
     }
@@ -511,7 +512,7 @@ int main(int argc, char** argv)
    */
 
   if (leader) {
-    ROS_INFO("main(...): capturing initial panorama");
+    ROS_INFO("[exploration_manager]: capturing initial panorama");
 
     string robot_frame = tf_prefix + "/base_link";
     geometry_msgs::TransformStamped tfs;
@@ -534,8 +535,8 @@ int main(int argc, char** argv)
   } else {
     while (shared_goals_count < robot_id) {
       countdown.sleep(); countdown.sleep();
-      ROS_INFO("main(...): robot%d is waiting for %d goals to be received "
-          "before beginning exploration", robot_id, robot_id);
+      ROS_INFO("[exploration_manager]: robot%d is waiting for %d goals to be "
+          "received before beginning exploration", robot_id, robot_id);
       ros::spinOnce();
     }
   }
@@ -601,8 +602,9 @@ int main(int argc, char** argv)
       for (auto goal_pair : goals) {
         double goal_diff = (goal_pt - goal_pair.point).norm();
         if (goal_diff < 0.5) {
-          ROS_INFO_STREAM("main(...): goal: " << goal_pt << " in proximity to "
-              "goal: " << goal_pair.point << " with id: " << goal_pair.id);
+          ROS_INFO_STREAM("[exploration_manager]: goal: " << goal_pt << " in" 
+              "proximity to goal: " << goal_pair.point << " with id: "
+              << goal_pair.id);
           ++goal_it;
           continue;
         } else {
@@ -614,11 +616,11 @@ int main(int argc, char** argv)
 
     // if no goal was found, wait for a new map and then start planning again
     if (!goal_found) {
-      ROS_WARN("main(...): failed to find a goal... will wait for new map");
+      ROS_WARN("[exploration_manager]: failed to find a goal... will wait for new map");
       received_new_map = false;
       while (!received_new_map) {
         countdown.sleep();
-        ROS_INFO("main(...): robot%d is waiting for a new map", robot_id);
+        ROS_INFO("[exploration_manager]: robot%d is waiting for a new map", robot_id);
         ros::spinOnce();
       }
       continue;
@@ -659,7 +661,7 @@ int main(int argc, char** argv)
     move_ac->sendGoal(action_goal, &moveDoneCB, &moveActiveCB, &moveFeedbackCB);
     move_ac->waitForResult();
     if (!move_base_succeeded) {
-      ROS_INFO("main(...): Navigation failed. Restarting planning process.");
+      ROS_INFO("[exploration_manager]: Navigation failed. Restarting planning process.");
       continue;
     }
 
@@ -670,7 +672,7 @@ int main(int argc, char** argv)
 
     capturePanorama();
 
-    ROS_INFO("main(...): Completed iteration loop %d", pan_count);
+    ROS_INFO("[exploration_manager]: Completed iteration loop %d", pan_count);
   }
 
   return 0;
