@@ -1,6 +1,5 @@
 <launch>
 
-  <arg name="camera" default="xtion"/>
   <arg name="ranging_radio" default="true"/>
   <arg name="radio_id"/>
   <arg name="robot_id"/>
@@ -12,7 +11,6 @@
 
     <!-- Launch robot components -->
     <include file="$(find robot_io)/launch/robot.launch">
-      <arg name="camera"            value="$(arg camera)"/>
       <arg name="hokuyo"            value="true"/>
       <arg name="odometry"          value="true"/>
       <arg name="slam"              value="true"/>
@@ -22,8 +20,7 @@
     </include>
 
     <!-- launch camera tf static frames -->
-    <include file="$(find robot_io)/launch/xtion_frames$(arg robot_ip).launch">
-      <arg name="camera"    value="$(arg camera)" />
+    <include file="$(env ROS_HOME)/cfg/xtion_frames$(arg robot_ip).launch">
       <arg name="tf_prefix" value="$(arg tf_prefix)" />
     </include>
 
@@ -31,7 +28,7 @@
     <include file="$(find panorama)/launch/panorama_node.launch">
       <arg name="save_directory"      value="/home/odroid/.ros/panoramas"/>
       <arg name="world_frame"         value="$(arg tf_prefix)/map"/>
-      <arg name="camera_frame"        value="$(arg tf_prefix)/$(arg camera)_rgb_frame"/>
+      <arg name="camera_frame"        value="$(arg tf_prefix)/xtion_rgb_frame"/>
       <arg name="robot_frame"         value="$(arg tf_prefix)/base_link"/>
       <arg name="image_registration"  value="true"/>
       <arg name="debug"               value="false"/>
