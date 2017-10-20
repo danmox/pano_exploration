@@ -93,6 +93,12 @@ Panorama::Panorama(ros::NodeHandle nh_, ros::NodeHandle pnh_, string name) :
     xtion.setImageRegistration(openni::ImageRegistrationMode::
       IMAGE_REGISTRATION_DEPTH_TO_COLOR);
   }
+
+  // manually set color camera exposure
+  if (!camera_auto_settings) {
+    xtion.enableColorCameraAutoSettings(camera_auto_settings);
+    xtion.setColorCameraExposure(exposure);
+  }
 }
 
 // constrain and angle to (-pi, pi]
@@ -169,9 +175,6 @@ void Panorama::sendSpinCommand(double speed)
 //      the pose of the robot when the captureLoop began
 void Panorama::captureLoop()
 {
-  // turn off auto exposure / white balance during panorama
-  xtion.enableColorCameraAutoSettings(false);
-
   // calculate capture angles
   double start_angle;
   {
@@ -278,10 +281,6 @@ void Panorama::captureLoop()
   panorama::PanoramaResult result;
   result.full_file_name = full_file_name;
   as.setSucceeded(result);
-
-  // turn on auto exposure / white balance after complete (so that the camera
-  // automatically picks reasonable values for the next pano)
-  xtion.enableColorCameraAutoSettings(true);
 }
 
 } // panorama namespace
