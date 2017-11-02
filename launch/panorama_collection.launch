@@ -1,7 +1,8 @@
 <launch>
 
-  <arg name="camera"      default="xtion" />
-  <arg name="tf_prefix"   default="robot1" />
+  <arg name="camera"      default="xtion"/>
+  <arg name="tf_prefix"   default="robot1"/>
+  <arg name="exposure"    default="100"/>
 
   <group ns="$(arg tf_prefix)">
 
@@ -19,6 +20,7 @@
       <arg name="world_frame"     value="$(arg tf_prefix)/map"/>
       <arg name="camera_frame"    value="$(arg tf_prefix)/$(arg camera)_rgb_frame"/>
       <arg name="robot_frame"     value="$(arg tf_prefix)/base_link"/>
+      <arg name="exposure"        value="$(arg exposure)"/>
     </include>
 
   </group>

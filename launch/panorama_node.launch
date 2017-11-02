@@ -7,7 +7,7 @@
     <arg name="save_directory"        default="$(env HOME)/.ros/panoramas"/>
     <arg name="image_registration"    default="true"/>
     <arg name="camera_auto_settings"  default="false"/>
-    <arg name="exposure"              default="50"/>
+    <arg name="exposure"              default="100"/>
     <arg name="world_frame"/>
     <arg name="robot_frame"/>
     <arg name="camera_frame"/>
