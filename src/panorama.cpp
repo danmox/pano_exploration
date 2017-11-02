@@ -233,7 +233,7 @@ void Panorama::captureLoop()
       // in continuous mode, only capture frames when robot is turning
       double tmp = -sgn(spin_speed)*headDiff(last_frame_heading);
       capture_frame = -sgn(spin_speed)*headDiff(last_frame_heading) > 0.01;
-      ROS_INFO_THROTTLE(0.1, "[panorama] tmp = %.4f, capture_frame = %d", tmp, capture_frame);
+      //ROS_INFO_THROTTLE(0.5, "[panorama] tmp = %.4f, capture_frame = %d", tmp, capture_frame);
     }
 
     // save data if the robot has reached the desired frame heading
