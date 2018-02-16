@@ -67,12 +67,12 @@ class Panorama
     // the desired time and store the result in the templated data structure
     // using tf2 to perform necessary conversions
     template <class T>
-    void getTrans(std::string, std::string, ros::Time, T&);
+    bool getTrans(std::string, std::string, ros::Time, T&);
 
   public:
     Panorama(ros::NodeHandle, ros::NodeHandle, std::string);
 
-    void syncCB(const openni2_xtion::RGBDFramePtr&, 
+    void syncCB(const openni2_xtion::RGBDFramePtr&,
                 const geometry_msgs::PoseStamped::ConstPtr&);
     void goalCB();
     void preemptCB();
@@ -85,20 +85,19 @@ class Panorama
 // and return the result as type T (conversions between types are handled by
 // tf2::convert)
 template <typename T>
-void Panorama::getTrans(std::string dest_frame, std::string src_frame, 
+bool Panorama::getTrans(std::string dest_frame, std::string src_frame,
     ros::Time t, T& bt)
 {
   geometry_msgs::TransformStamped trans;
   try {
     trans = tf_buffer.lookupTransform(dest_frame, src_frame, t);
   } catch (tf2::TransformException &ex) {
-    ROS_ERROR("[panorama] error fetching transform from %s to %s: %s",
+    ROS_WARN("[panorama] error fetching transform from %s to %s: %s",
         src_frame.c_str(), dest_frame.c_str(), ex.what());
-    panorama::PanoramaResult result;
-    as.setAborted(result);
-    return;
+    return false;
   }
   tf2::convert(trans, bt);
+  return true;
 }
 
 } // panorama namespace

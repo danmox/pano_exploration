@@ -197,7 +197,14 @@ void Panorama::captureLoop()
   // save panorama pose
   ROS_INFO("[panorama] saving panorama pose");
   TransformStamped t_robot_world;
-  getTrans(world_frame, robot_frame, ros::Time(0), t_robot_world);
+  if(!getTrans(world_frame, robot_frame, ros::Time(0), t_robot_world)) {
+    ROS_ERROR("[panorama] unable to save panorama pose: aborting");
+    bag.close();
+    sendSpinCommand(0.0);
+    panorama::PanoramaResult result;
+    as.setAborted(result);
+    return;
+  }
   PoseStamped pano_pose = transToPose(t_robot_world);
   bag.write("panorama_pose", pano_pose.header.stamp, pano_pose);
 
@@ -251,7 +258,8 @@ void Panorama::captureLoop()
 
       // save camera pose
       TransformStamped camera_trans;
-      getTrans(world_frame, camera_frame, frame_stamp, camera_trans);
+      if(!getTrans(world_frame, camera_frame, frame_stamp, camera_trans))
+        continue;
       PoseStamped camera_pose = transToPose(camera_trans);
       bag.write("camera_pose", camera_pose.header.stamp, camera_pose);
 
