@@ -23,9 +23,9 @@
       <arg name="tf_prefix" value="$(arg tf_prefix)"/>
     </include>
 
-    <!-- panorama nodelet
+    <!-- panorama nodelet -->
     <include file="$(find panorama)/launch/panorama_node.launch">
-      <arg name="world_frame"         value="$(arg tf_prefix)/odom_laser"/>
+      <arg name="world_frame"         value="$(arg tf_prefix)/map"/>
       <arg name="camera_frame"        value="$(arg tf_prefix)/camera_rgb_frame"/>
       <arg name="robot_frame"         value="$(arg tf_prefix)/base_link"/>
       <arg name="debug"               value="false"/>
@@ -35,15 +35,15 @@
       <arg name="image_registration"  value="true"/>
       <arg name="exposure"            value="100"/>
     </include>
- -->
-    <!-- exploration manager
+
+    <!-- exploration manager -->
     <node pkg="csqmi_exploration" type="exploration_manager" 
       name="exploration_manager" output="screen">
       <param name="tf_prefix"         value="$(arg tf_prefix)"/>
       <param name="robot_id"          value="$(arg robot_id)"/>
       <param name="leader"            value="$(arg leader)"/>
     </node>
- -->
+
   </group>
 
 </launch>
