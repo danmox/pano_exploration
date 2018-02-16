@@ -12,7 +12,7 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   geometry_msgs
   nav_msgs
-  move_base_msgs
+  scarab_msgs
   rosbag
   panorama
   pcl_ros
@@ -52,7 +52,7 @@ catkin_package(
     geometry_msgs
     sensor_msgs
     nav_msgs
-    move_base_msgs
+    scarab_msgs
     rosbag
     panorama
     pcl_ros

@@ -4,7 +4,7 @@
 
 #include <actionlib/client/simple_action_client.h>
 #include <panorama/PanoramaAction.h>
-#include <move_base_msgs/MoveBaseAction.h>
+#include <scarab_msgs/MoveAction.h>
 #include <geometry_msgs/Twist.h>
 #include <geometry_msgs/TransformStamped.h>
 #include <geometry_msgs/PoseStamped.h>
@@ -35,7 +35,7 @@ using std::vector;
 using std::string;
 
 typedef actionlib::SimpleActionClient<panorama::PanoramaAction> PanAC;
-typedef actionlib::SimpleActionClient<move_base_msgs::MoveBaseAction> MoveAC;
+typedef actionlib::SimpleActionClient<scarab_msgs::MoveAction> MoveAC;
 
 typedef vector<vector<cv::Point>> regions_vec;
 typedef pcl::PointCloud<pcl::PointXYZRGB> CloudXYZRGB;
@@ -54,7 +54,7 @@ int robot_id;
 int pan_count = 0;
 int number_of_robots;
 volatile int shared_goals_count = 0;
-volatile bool received_new_map = false, move_base_succeeded = true;
+volatile bool received_new_map = false, navigation_succeeded = true;
 string tf_prefix;
 string pan_file;
 double scan_range_min, scan_range_max;
@@ -91,10 +91,10 @@ void panDoneCB(const actionlib::SimpleClientGoalState& state,
 }
 
 //
-// move_base action functions
+// hfn action functions
 //
 
-void moveFeedbackCB(const move_base_msgs::MoveBaseFeedbackConstPtr& msg)
+void moveFeedbackCB(const scarab_msgs::MoveFeedbackConstPtr& msg)
 {
 }
 
@@ -104,12 +104,12 @@ void moveActiveCB()
 }
 
 void moveDoneCB(const actionlib::SimpleClientGoalState& state,
-    const move_base_msgs::MoveBaseResultConstPtr& result)
+    const scarab_msgs::MoveResultConstPtr& result)
 {
   ROS_INFO("[exploration_manager]: Navigation completed with status: %s",
       state.toString().c_str());
   if (state != actionlib::SimpleClientGoalState::StateEnum::SUCCEEDED) {
-    move_base_succeeded = false;
+    navigation_succeeded = false;
   }
 }
 
@@ -388,8 +388,7 @@ int main(int argc, char** argv)
   ros::NodeHandle nh, pnh("~");
   tf2_ros::TransformListener tfListener(tfBuffer);
 
-  ros::Publisher vel_pub, skel_pub, goal_pose_pub;
-  vel_pub = nh.advertise<geometry_msgs::Twist>("velocity_commands", 10);
+  ros::Publisher skel_pub, goal_pose_pub;
   viz_map_pub = nh.advertise<nav_msgs::OccupancyGrid>("map_2D", 2);
   pan_grid_pub = nh.advertise<grid_mapping::OccupancyGrid>("angle_grid", 2);
   skel_pub = nh.advertise<PointCloud2>("skeleton", 2);
@@ -437,14 +436,14 @@ int main(int argc, char** argv)
    * Initialize action servers for panorama capture and navigation
    */
 
-  string pan_server_name = "/" + tf_prefix + "/panorama_action_server";
+  string pan_server_name = "/" + tf_prefix + "/panorama";
   pan_ac.reset(new PanAC(pan_server_name.c_str(), true));
   ROS_INFO("[exploration_manager]: Waiting for action server to start: %s",
       pan_server_name.c_str());
   pan_ac->waitForServer();
   ROS_INFO("[exploration_manager]: %s is ready", pan_server_name.c_str());
 
-  string nav_server_name = "/" + tf_prefix + "/move_base";
+  string nav_server_name = "/" + tf_prefix + "/move";
   move_ac.reset(new MoveAC(nav_server_name.c_str(), true));
   ROS_INFO("[exploration_manager]: Waiting for action server to start: %s",
       nav_server_name.c_str());
@@ -476,16 +475,17 @@ int main(int argc, char** argv)
 
   if (ranging_radios) {
     for (int i = 0; i < calibration_dance_points; ++i) {
-      move_base_msgs::MoveBaseGoal dance_pt;
-      dance_pt.target_pose.header.stamp = ros::Time::now();
-      dance_pt.target_pose.header.frame_id = tf_prefix + "/map";
-
+      geometry_msgs::PoseStamped target_pose;
+      target_pose.header.stamp = ros::Time::now();
+      target_pose.header.frame_id = tf_prefix + "/map";
       srand(time(NULL));
       double angle = (rand()%100)*2*M_PI/100.0;
-      dance_pt.target_pose.pose.position.x = dance_radius*cos(angle);
-      dance_pt.target_pose.pose.position.y = dance_radius*sin(angle);
-      dance_pt.target_pose.pose.orientation.w = 1.0;
+      target_pose.pose.position.x = dance_radius*cos(angle);
+      target_pose.pose.position.y = dance_radius*sin(angle);
+      target_pose.pose.orientation.w = 1.0;
 
+      scarab_msgs::MoveGoal dance_pt;
+      dance_pt.target_poses.push_back(target_pose);
       move_ac->sendGoal(dance_pt, &moveDoneCB, &moveActiveCB, &moveFeedbackCB);
       move_ac->waitForResult();
       ROS_INFO("[exploration_manager]: reached point %d of %d in calibration "
@@ -643,12 +643,15 @@ int main(int argc, char** argv)
      * Navigate to the goal point
      */
 
-    move_base_msgs::MoveBaseGoal action_goal;
-    action_goal.target_pose.header.stamp = ros::Time::now();
-    action_goal.target_pose.header.frame_id = tf_prefix + "/map";
-    action_goal.target_pose.pose.position.x = goal_pt.x;
-    action_goal.target_pose.pose.position.y = goal_pt.y;
-    action_goal.target_pose.pose.orientation.w = 1.0;
+    geometry_msgs::PoseStamped target_pose;
+    target_pose.header.stamp = ros::Time::now();
+    target_pose.header.frame_id = tf_prefix + "/map";
+    target_pose.pose.position.x = goal_pt.x;
+    target_pose.pose.position.y = goal_pt.y;
+    target_pose.pose.orientation.w = 1.0;
+
+    scarab_msgs::MoveGoal action_goal;
+    action_goal.target_poses.push_back(target_pose);
 
     csqmi_exploration::PanGoal goal_pose_msg;
     goal_pose_msg.frame_id = tf_prefix + "/map";
@@ -659,7 +662,7 @@ int main(int argc, char** argv)
 
     move_ac->sendGoal(action_goal, &moveDoneCB, &moveActiveCB, &moveFeedbackCB);
     move_ac->waitForResult();
-    if (!move_base_succeeded) {
+    if (!navigation_succeeded) {
       ROS_INFO("[exploration_manager]: Navigation failed. Restarting planning process.");
       continue;
     }
