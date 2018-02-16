@@ -49,7 +49,7 @@ class Panorama
     std::string save_directory, file_name;
 
     // sensor data
-    geometry_msgs::PoseStampedConstPtr pose_ptr;
+    ros::Time pose_timestamp;
     openni2_xtion::RGBDFramePtr rgbd_ptr;
     std::mutex data_mutex;
 

@@ -58,7 +58,7 @@ int main(int argc, char** argv)
 
   ros::init(argc, argv, "panorama_action_cli");
 
-  string server_name = "/robot" + string(argv[1]) + "/panorama_action_server";
+  string server_name = "/robot" + string(argv[1]) + "/panorama";
   ActionClient ac(server_name.c_str(), true);
   printf("Waiting for action server to start: %s\n", server_name.c_str());
   ac.waitForServer();

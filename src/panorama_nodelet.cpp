@@ -7,7 +7,7 @@ void PanoramaNodelet::onInit()
   nh = getNodeHandle();
   pnh = getPrivateNodeHandle();
 
-  std::string name = "panorama_action_server";
+  std::string name = "panorama";
   pan.reset(new Panorama(nh, pnh, name));
 }
 

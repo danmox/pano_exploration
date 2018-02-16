@@ -1,19 +1,13 @@
 <launch>
 
-  <arg name="camera"      default="xtion"/>
-  <arg name="tf_prefix"   default="robot1"/>
+  <arg name="camera"      default="camera"/>
+  <arg name="tf_prefix"   default="/"/>
   <arg name="exposure"    default="100"/>
 
   <group ns="$(arg tf_prefix)">
 
-    <!-- robot components -->
-    <include file="$(find robot_io)/launch/robot.launch">
-      <arg name="hokuyo"              value="true"/>
-      <arg name="odometry"            value="true"/>
-      <arg name="slam"                value="true"/>
-      <arg name="xtion_tf_frames"    value="true"/>
-      <arg name="tf_prefix"           value="$(arg tf_prefix)"/>
-    </include>
+    <!-- scarab components -->
+    <include file="$(find scarab)/scarab.launch"/>
 
     <!-- panorama action server node -->
     <include file="$(find panorama)/launch/panorama_node.launch">

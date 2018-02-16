@@ -58,13 +58,13 @@ Panorama::Panorama(ros::NodeHandle nh_, ros::NodeHandle pnh_, string name) :
 
   // setup approximate time synchronizer for RGBDFrames and PoseStamped msgs
   typedef openni2_xtion::RGBDFramePtr RGBDPtr;
-  typedef PoseStampedConstPtr PosePtr;
-  auto rgbd_cb = std::bind(&openni2_xtion::TimeFilter<RGBDPtr,PosePtr>::t1CB, 
+  typedef geometry_msgs::PoseStampedConstPtr PosePtr;
+  auto rgbd_cb = std::bind(&openni2_xtion::TimeFilter<RGBDPtr,PosePtr>::t1CB,
       &time_filter, std::placeholders::_1);
-  auto sync_cb = std::bind(&Panorama::syncCB, this, std::placeholders::_1, 
+  auto sync_cb = std::bind(&Panorama::syncCB, this, std::placeholders::_1,
       std::placeholders::_2);
   pose_sub = nh.subscribe("pose", 10, 
-      &openni2_xtion::TimeFilter<RGBDPtr,PosePtr>::t2CB, &time_filter); 
+      &openni2_xtion::TimeFilter<RGBDPtr,PosePtr>::t2CB, &time_filter);
   xtion.registerCallback(rgbd_cb);
   time_filter.registerCallback(sync_cb);
 
@@ -114,11 +114,11 @@ double constrainAngle(double angle)
 // store pointers to color and depth images and the robot pose estimated by
 // laser slam and compute the current heading of the robot
 void Panorama::syncCB(const openni2_xtion::RGBDFramePtr& rgbd_msg, 
-                      const PoseStampedConstPtr& pose_msg)
+                      const geometry_msgs::PoseStamped::ConstPtr& pose_msg)
 {
   lock_guard<mutex> lock(data_mutex);
   rgbd_ptr = rgbd_msg;
-  pose_ptr = pose_msg;
+  pose_timestamp = pose_msg->header.stamp;
   current_heading = constrainAngle(tf::getYaw(pose_msg->pose.orientation));
   /*
   ROS_DEBUG("[panorama] messages received with timestamp "
@@ -246,7 +246,7 @@ void Panorama::captureLoop()
         // save image data to bag
         bag.write("color", rgbd_ptr->color->header.stamp, rgbd_ptr->color);
         bag.write("depth", rgbd_ptr->depth->header.stamp, rgbd_ptr->depth);
-        frame_stamp = pose_ptr->header.stamp;
+        frame_stamp = pose_timestamp;
       }
 
       // save camera pose
@@ -267,7 +267,7 @@ void Panorama::captureLoop()
       as.publishFeedback(feedback);
 
       if (!continuous_capture) {
-        complete = frame <= number_of_frames;
+        complete = frame >= number_of_frames;
       } else {
         complete = total_turn > sgn(spin_speed)*2.0*M_PI;
       }

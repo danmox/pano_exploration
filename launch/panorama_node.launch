@@ -12,9 +12,8 @@
     <arg name="robot_frame"/>
     <arg name="camera_frame"/>
 
-    <node pkg="panorama" type="panorama_node" name="panorama_action_server">
-        <remap from="pose"     to="slam_pose"/>
-        <remap from="velocity" to="velocity_commands"/>
+    <node pkg="panorama" type="panorama_node" name="panorama">
+        <remap from="velocity" to="cmd_vel"/>
 
         <param name="debug"                 value="$(arg debug)"/>
         <param name="spin_speed"            value="$(arg spin_speed)"/>

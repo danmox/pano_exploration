@@ -3,7 +3,7 @@
     <arg name="tf_prefix" default="robot1"/>
 
     <node name="panorama_action_cli" pkg="panorama" type="action_client" output="screen">
-        <param name="action_server_name" value="/$(arg tf_prefix)/panorama_action_server"/>
+        <param name="action_server_name" value="/$(arg tf_prefix)/panorama"/>
     </node>
 
 </launch>

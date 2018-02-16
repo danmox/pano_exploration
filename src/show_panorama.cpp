@@ -9,6 +9,7 @@
 
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/highgui/highgui.hpp>
+#include <opencv2/contrib/contrib.hpp>
 
 cv::Mat ROSImageToMat(const sensor_msgs::Image::ConstPtr& msg)
 {
