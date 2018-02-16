@@ -2,7 +2,7 @@
 #define CSQMI_PLANNING_CSQMI_H_
 
 #include <grid_mapping/angle_grid.h>
-#include <opencv2/core/types.hpp>
+#include <opencv2/core/core.hpp>
 #include <unordered_map>
 #include <vector>
 #include <cmath>
