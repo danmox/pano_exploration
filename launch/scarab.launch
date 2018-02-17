@@ -1,6 +1,7 @@
 <launch>
 
   <arg name="ranging_radio" default="false"/>
+  <arg name="pano_save_dir" default="$(env HOME)/.ros/panoramas"/>
   <arg name="radio_id"/>
   <arg name="robot_id"/>
   <arg name="tf_prefix"/>
@@ -25,12 +26,13 @@
 
     <!-- panorama nodelet -->
     <include file="$(find panorama)/launch/panorama_node.launch">
+      <arg name="save_directory"      value="$(arg pano_save_dir)"/>
       <arg name="world_frame"         value="$(arg tf_prefix)/map"/>
       <arg name="camera_frame"        value="$(arg tf_prefix)/camera_rgb_frame"/>
       <arg name="robot_frame"         value="$(arg tf_prefix)/base_link"/>
       <arg name="debug"               value="false"/>
       <arg name="spin_speed"          value="0.25"/>
-      <arg name="number_of_frames"    value="100"/>
+      <arg name="number_of_frames"    value="30"/>
       <arg name="continuous_capture"  value="false"/>
       <arg name="image_registration"  value="true"/>
       <arg name="exposure"            value="100"/>
