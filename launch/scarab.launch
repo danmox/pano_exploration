@@ -7,6 +7,8 @@
   <arg name="tf_prefix"/>
   <arg name="leader"/>
 
+  <arg name="slam_only"     value="true"/>
+
   <group ns="$(arg tf_prefix)">
 
     <!-- robot components -->
@@ -25,7 +27,7 @@
     </include>
 
     <!-- panorama nodelet -->
-    <include file="$(find panorama)/launch/panorama_node.launch">
+    <include unless="$(arg slam_only)" file="$(find panorama)/launch/panorama_node.launch">
       <arg name="save_directory"      value="$(arg pano_save_dir)"/>
       <arg name="world_frame"         value="$(arg tf_prefix)/map"/>
       <arg name="camera_frame"        value="$(arg tf_prefix)/camera_rgb_frame"/>
@@ -40,7 +42,7 @@
 
     <!-- exploration manager -->
     <node pkg="csqmi_exploration" type="exploration_manager" 
-      name="exploration_manager" output="screen">
+      name="exploration_manager" output="screen" unless="$(arg slam_only)">
       <param name="tf_prefix"         value="$(arg tf_prefix)"/>
       <param name="robot_id"          value="$(arg robot_id)"/>
       <param name="leader"            value="$(arg leader)"/>
