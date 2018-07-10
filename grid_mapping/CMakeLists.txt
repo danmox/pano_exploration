@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 2.8.3)
 project(grid_mapping)
 
+cmake_policy(SET CMP0046 NEW)
 add_definitions(-std=c++11)
-set(CMAKE_BUILD_TYPE Debug)
 
 find_package(catkin REQUIRED COMPONENTS
   roscpp

@@ -12,7 +12,6 @@
 #include <sensor_msgs/PointCloud2.h>
 #include <grid_mapping/OccupancyGrid.h>
 #include <csqmi_exploration/PanGoal.h>
-#include <csqmi_exploration/InitRelLocalization.h>
 
 #include <grid_mapping/angle_grid.h>
 #include <csqmi_planning/csqmi_planning.h>
@@ -395,7 +394,7 @@ int main(int argc, char** argv)
   pan_pose_pub = nh.advertise<csqmi_exploration::PanGoal>("pan_pose", 2);
   goal_pose_pub = nh.advertise<csqmi_exploration::PanGoal>("goal_pose", 2);
 
-  bool leader, ranging_radios;
+  bool leader;
   int calibration_dance_points;
   double dance_radius;
   if (!pnh.getParam("tf_prefix", tf_prefix) ||
@@ -404,7 +403,6 @@ int main(int argc, char** argv)
       !nh.getParam("/dance_points", calibration_dance_points) ||
       !nh.getParam("/dance_radius", dance_radius) ||
       !nh.getParam("/number_of_robots", number_of_robots) ||
-      !nh.getParam("/ranging_radios", ranging_radios) ||
       !nh.getParam("/scan_range_min", scan_range_min) ||
       !nh.getParam("/scan_range_max", scan_range_max)) {
     ROS_FATAL("[exploration_manager]: failed to read params from server");
@@ -450,15 +448,6 @@ int main(int argc, char** argv)
   move_ac->waitForServer();
   ROS_INFO("[exploration_manager]: %s is ready", nav_server_name.c_str());
 
-  ros::ServiceClient init_client;
-  if (ranging_radios) {
-    std::string init_name = "/init_relative_localization";
-    init_client = nh.serviceClient<csqmi_exploration::InitRelLocalization>(init_name);
-    ROS_INFO("[exploration_manager]: waiting for %s service server", init_name.c_str());
-    init_client.waitForExistence();
-    ROS_INFO("[exploration_manager]: %s service server ready", init_name.c_str());
-  }
-
   /*
    * Give the other components/robots time to load before staring exploration
    */
@@ -467,41 +456,6 @@ int main(int argc, char** argv)
   for (int i = 5; i > 0; --i) {
     ROS_INFO("[exploration_manager]: Beginning exploration in %d seconds...", i);
     countdown.sleep();
-  }
-
-  /*
-   * Perform calibration dance and initalize relative localization
-   */
-
-  if (ranging_radios) {
-    for (int i = 0; i < calibration_dance_points; ++i) {
-      geometry_msgs::PoseStamped target_pose;
-      target_pose.header.stamp = ros::Time::now();
-      target_pose.header.frame_id = tf_prefix + "/map";
-      srand(time(NULL));
-      double angle = (rand()%100)*2*M_PI/100.0;
-      target_pose.pose.position.x = dance_radius*cos(angle);
-      target_pose.pose.position.y = dance_radius*sin(angle);
-      target_pose.pose.orientation.w = 1.0;
-
-      scarab_msgs::MoveGoal dance_pt;
-      dance_pt.target_poses.push_back(target_pose);
-      move_ac->sendGoal(dance_pt, &moveDoneCB, &moveActiveCB, &moveFeedbackCB);
-      move_ac->waitForResult();
-      ROS_INFO("[exploration_manager]: reached point %d of %d in calibration "
-          "dance", i+1, calibration_dance_points);
-    }
-
-    while (ros::ok()) {
-      csqmi_exploration::InitRelLocalization rl_msg;
-      rl_msg.request.id = robot_id;
-      init_client.call(rl_msg);
-      if (rl_msg.response.status)
-        break;
-      ROS_INFO("[exploration_manager]: waiting for relative localization to initialize");
-      countdown.sleep();
-      ros::spinOnce();
-    }
   }
 
   /*

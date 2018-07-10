@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 2.8.3)
 project(csqmi_exploration)
 
-set(CMAKE_BUILD_TYPE Debug)
+cmake_policy(SET CMP0046 NEW)
 add_definitions(-std=c++11)
 
 find_package(catkin REQUIRED COMPONENTS
@@ -19,7 +19,6 @@ find_package(catkin REQUIRED COMPONENTS
   pcl_conversions
   sensor_msgs
   message_generation
-  relative_localization
 )
 
 find_package(OpenCV REQUIRED)
@@ -58,7 +57,6 @@ catkin_package(
     pcl_ros
     pcl_conversions
     message_runtime
-    relative_localization
   DEPENDS OpenCV
 )
 
@@ -74,8 +72,3 @@ add_dependencies(exploration_manager ${PROJECT_NAME}_generate_messages_cpp)
 
 add_executable(skel_pointcloud src/pcl_visualization_test.cpp)
 target_link_libraries(skel_pointcloud ${catkin_LIBRARIES} ${OpenCV_LIBS} ${PCL_LIBRARIES})
-
-add_executable(init_relative_localization src/init_relative_localization.cpp)
-target_link_libraries(init_relative_localization ${catkin_LIBRARIES})
-add_dependencies(init_relative_localization ${catkin_EXPORTED_TARGETS}
-  ${PROJECT_NAME}_generate_messages_cpp)
