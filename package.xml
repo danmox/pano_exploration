@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>csqmi_exploration</name>
+  <version>0.0.0</version>
+  <description>The csqmi_exploration package</description>
+  <maintainer email="daniel@todo.todo">daniel</maintainer>
+  <license>TODO</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <depend>csqmi_planning</depend>
+  <depend>grid_mapping</depend>
+  <depend>nodelet</depend>
+  <depend>roscpp</depend>
+  <depend>std_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>nav_msgs</depend>
+  <depend>scarab_msgs</depend>
+  <depend>rosbag</depend>
+  <depend>panorama</depend>
+  <depend>pcl_ros</depend>
+  <depend>pcl_conversions</depend>
+  <depend>sensor_msgs</depend>
+  <depend>message_generation</depend>
+  <depend>message_runtime</depend>
+  <depend>relative_localization</depend>
+
+  <export>
+  </export>
+</package>

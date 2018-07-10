@@ -1,0 +1,56 @@
+<launch>
+
+  <arg name="ranging_radio" default="true"/>
+  <arg name="radio_id"/>
+  <arg name="robot_id"/>
+  <arg name="robot_ip" default=""/>
+  <arg name="tf_prefix"/>
+  <arg name="leader"/>
+
+  <group ns="$(arg tf_prefix)">
+
+    <!-- Launch robot components -->
+    <include file="$(find robot_io)/launch/robot.launch">
+      <arg name="hokuyo"            value="true"/>
+      <arg name="odometry"          value="true"/>
+      <arg name="slam"              value="true"/>
+      <arg name="tf_prefix"         value="$(arg tf_prefix)"/>
+      <arg name="pulson"            value="$(arg ranging_radio)"/>
+      <arg name="radio_id"          value="$(arg radio_id)"/>
+    </include>
+
+    <!-- launch camera tf static frames -->
+    <include file="$(env ROS_HOME)/cfg/xtion_frames$(arg robot_ip).launch">
+      <arg name="tf_prefix" value="$(arg tf_prefix)" />
+    </include>
+
+    <!-- panorama nodelet -->
+    <include file="$(find panorama)/launch/panorama_node.launch">
+      <arg name="save_directory"      value="/home/odroid/.ros/panoramas"/>
+      <arg name="world_frame"         value="$(arg tf_prefix)/map"/>
+      <arg name="camera_frame"        value="$(arg tf_prefix)/xtion_rgb_frame"/>
+      <arg name="robot_frame"         value="$(arg tf_prefix)/base_link"/>
+      <arg name="image_registration"  value="true"/>
+      <arg name="debug"               value="false"/>
+      <arg name="spin_speed"          value="0.25"/>
+    </include>
+
+    <!-- load move_base parameters and launch move_base components -->
+    <include ns="move_base" file="$(find robot_io)/launch/move_base_params.launch">
+      <arg name="tf_prefix" value="$(arg tf_prefix)"/>
+    </include>
+    <node pkg="move_base" type="move_base" respawn="false" name="move_base"> <!-- output="screen"> -->
+      <remap from="cmd_vel" to="velocity_commands"/>
+    </node>
+
+    <!-- exploration manager -->
+    <node pkg="csqmi_exploration" type="exploration_manager" 
+      name="exploration_manager" output="screen">
+      <param name="tf_prefix" value="$(arg tf_prefix)"/>
+      <param name="robot_id" value="$(arg robot_id)"/>
+      <param name="leader" value="$(arg leader)"/>
+    </node>
+
+  </group>
+
+</launch>
