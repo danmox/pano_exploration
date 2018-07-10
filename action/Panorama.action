@@ -1,0 +1,8 @@
+# goal
+string file_name
+---
+# result
+string full_file_name
+---
+# feedback
+uint16 frames_captured

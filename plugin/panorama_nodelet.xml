@@ -1,0 +1,8 @@
+<library path="lib/libpanorama_nodelet">
+    <class name="panorama/PanoramaNodelet" type="panorama::PanoramaNodelet" 
+        base_class_type="nodelet::Nodelet">
+        <description>
+            A nodelet for capturing RGBD panoramas
+        </description>
+    </class>
+</library>

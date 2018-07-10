@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>panorama</name>
+  <version>0.0.0</version>
+  <description>Capture panoramas from an RGBD camera</description>
+
+  <maintainer email="saslab@todo.todo">saslab</maintainer>
+  <license>BSD</license> 
+
+  <buildtool_depend>catkin</buildtool_depend>
+  <depend>cv_bridge</depend>
+  <depend>geometry_msgs</depend>
+  <depend>nodelet</depend>
+  <depend>roscpp</depend>
+  <depend>std_msgs</depend>
+  <depend>message_generation</depend>
+  <depend>message_runtime</depend>
+  <depend>actionlib</depend>
+  <depend>actionlib_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>tf</depend>
+  <depend>tf2_geometry_msgs</depend>
+  <depend>tf2_kdl</depend>
+  <depend>nav_msgs</depend>
+  <depend>rosbag</depend>
+  <depend>openni2_xtion</depend>
+
+  <export>
+      <nodelet plugin="${prefix}/plugin/panorama_nodelet.xml" />
+  </export>
+</package>
