@@ -59,12 +59,9 @@ Panorama::Panorama(ros::NodeHandle nh_, ros::NodeHandle pnh_, string name) :
   // setup approximate time synchronizer for RGBDFrames and PoseStamped msgs
   typedef openni2_xtion::RGBDFramePtr RGBDPtr;
   typedef geometry_msgs::PoseStampedConstPtr PosePtr;
-  auto rgbd_cb = std::bind(&openni2_xtion::TimeFilter<RGBDPtr,PosePtr>::t1CB,
-      &time_filter, std::placeholders::_1);
-  auto sync_cb = std::bind(&Panorama::syncCB, this, std::placeholders::_1,
-      std::placeholders::_2);
-  pose_sub = nh.subscribe("pose", 10, 
-      &openni2_xtion::TimeFilter<RGBDPtr,PosePtr>::t2CB, &time_filter);
+  auto rgbd_cb = bind(&openni2_xtion::TimeFilter<RGBDPtr,PosePtr>::t1CB, &time_filter, _1);
+  auto sync_cb = bind(&Panorama::syncCB, this, _1, _2);
+  pose_sub = nh.subscribe("pose", 10, &openni2_xtion::TimeFilter<RGBDPtr,PosePtr>::t2CB, &time_filter);
   xtion.registerCallback(rgbd_cb);
   time_filter.registerCallback(sync_cb);
 
