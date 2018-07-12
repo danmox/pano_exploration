@@ -66,7 +66,8 @@ include_directories(
   ${PCL_INCLUDE_DIRS}
 )
 
-add_executable(exploration_manager src/exploration_manager.cpp)
+add_executable(exploration_manager src/exploration_manager_node.cpp
+  src/exploration_manager.cpp)
 target_link_libraries(exploration_manager ${catkin_LIBRARIES} ${OpenCV_LIBS})
 add_dependencies(exploration_manager ${PROJECT_NAME}_generate_messages_cpp)
 

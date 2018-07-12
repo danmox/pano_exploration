@@ -1,69 +1,110 @@
-#include <ros/ros.h>
+#include "csqmi_exploration/exploration_manager.h"
+
 #include <rosbag/bag.h>
 #include <rosbag/view.h>
 
-#include <actionlib/client/simple_action_client.h>
-#include <panorama/PanoramaAction.h>
-#include <scarab_msgs/MoveAction.h>
 #include <geometry_msgs/Twist.h>
 #include <geometry_msgs/TransformStamped.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <nav_msgs/OccupancyGrid.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <grid_mapping/OccupancyGrid.h>
-#include <csqmi_exploration/PanGoal.h>
-
-#include <grid_mapping/angle_grid.h>
-#include <csqmi_planning/csqmi_planning.h>
 
 #include <opencv2/opencv.hpp>
 #include <pcl/point_types.h>
 #include <pcl_ros/point_cloud.h>
 #include <pcl_conversions/pcl_conversions.h>
-#include <tf2_ros/transform_listener.h>
 #include <tf/transform_datatypes.h>
 
-#include <string.h>
 #include <sstream>
-#include <vector>
 #include <algorithm>
+#include <functional>
 
-using grid_mapping::AngleGrid;
-using sensor_msgs::PointCloud2;
 using std::vector;
 using std::string;
 
-typedef actionlib::SimpleActionClient<panorama::PanoramaAction> PanAC;
-typedef actionlib::SimpleActionClient<scarab_msgs::MoveAction> MoveAC;
+namespace csqmi_exploration {
 
 typedef vector<vector<cv::Point>> regions_vec;
 typedef pcl::PointCloud<pcl::PointXYZRGB> CloudXYZRGB;
 
-struct GoalIDPair
+ExplorationManager::ExplorationManager(ros::NodeHandle pnh_, ros::NodeHandle nh_) :
+  nh(nh_),
+  pnh(pnh),
+  pan_count(0),
+  shared_goals_count(0),
+  received_new_map(false),
+  navigation_succeeded(true),
+  ang_grid(grid_mapping::Point(0.0, 0.0), 0.1, 1, 1)
 {
-  grid_mapping::Point point;
-  int id;
-};
 
-//
-// global variables
-//
+  //
+  // initialize publishers / subscribers / parameters
+  //
 
-int robot_id;
-int pan_count = 0;
-int number_of_robots;
-volatile int shared_goals_count = 0;
-volatile bool received_new_map = false, navigation_succeeded = true;
-string tf_prefix;
-string pan_file;
-double scan_range_min, scan_range_max;
-AngleGrid ang_grid(grid_mapping::Point(0.0, 0.0), 0.1, 1, 1);
-ros::Publisher viz_map_pub, pan_grid_pub, pan_pose_pub;
-vector<grid_mapping::Point> pan_locations;
-vector<GoalIDPair> goals;
-tf2_ros::Buffer tfBuffer;
-std::shared_ptr<PanAC> pan_ac;
-std::shared_ptr<MoveAC> move_ac;
+  tfListener.reset(new tf2_ros::TransformListener(tfBuffer));
+
+  viz_map_pub = nh.advertise<nav_msgs::OccupancyGrid>("map_2D", 2);
+  pan_grid_pub = nh.advertise<grid_mapping::OccupancyGrid>("angle_grid", 2);
+  skel_pub = nh.advertise<sensor_msgs::PointCloud2>("skeleton", 2);
+  pan_pose_pub = nh.advertise<csqmi_exploration::PanGoal>("pan_pose", 2);
+  goal_pose_pub = nh.advertise<csqmi_exploration::PanGoal>("goal_pose", 2);
+
+  if (!pnh.getParam("tf_prefix", tf_prefix) ||
+      !pnh.getParam("robot_id", robot_id) ||
+      !pnh.getParam("leader", leader) ||
+      !nh.getParam("/number_of_robots", number_of_robots) ||
+      !nh.getParam("/scan_range_min", scan_range_min) ||
+      !nh.getParam("/scan_range_max", scan_range_max)) {
+    ROS_FATAL("[exploration_manager]: failed to read params from server");
+    exit(EXIT_FAILURE);
+  }
+
+  // CSQMI objective function
+  objective.reset(new CSQMI(DepthCamera(180, scan_range_max, scan_range_min), 0.03));
+
+  // TODO: get other robot ids as array parameter
+  // TODO: change "robot" to "scarab"
+  if (number_of_robots > 1) {
+    for (int i = 1; i <= number_of_robots; ++i) {
+      if (i == robot_id)
+        continue;
+
+      string robot_ns = "/robot" + std::to_string(i);
+      coord_subs.push_back(nh.subscribe(robot_ns + "/angle_grid", 2, &ExplorationManager::mapCB, this));
+      coord_subs.push_back(nh.subscribe(robot_ns + "/goal_pose", 2, &ExplorationManager::goalPoseCB, this));
+      coord_subs.push_back(nh.subscribe(robot_ns + "/pan_pose", 2, &ExplorationManager::panPoseCB, this));
+    }
+  }
+
+  //
+  // initialize angle grid for planning
+  //
+
+  ang_grid.frame_id = tf_prefix + "/map";
+  ang_grid.range_min = scan_range_min;
+  ang_grid.range_max = scan_range_max;
+
+  //
+  // Initialize action servers for panorama capture and navigation
+  //
+
+  typedef actionlib::SimpleActionClient<panorama::PanoramaAction> PanAC;
+  typedef actionlib::SimpleActionClient<scarab_msgs::MoveAction> MoveAC;
+
+  string pan_server_name = "/" + tf_prefix + "/panorama";
+  pan_ac.reset(new PanAC(pan_server_name.c_str(), true));
+  ROS_INFO("[exploration_manager]: Waiting for action server to start: %s", pan_server_name.c_str());
+  pan_ac->waitForServer();
+  ROS_INFO("[exploration_manager]: %s is ready", pan_server_name.c_str());
+
+  string nav_server_name = "/" + tf_prefix + "/move";
+  move_ac.reset(new MoveAC(nav_server_name.c_str(), true));
+  ROS_INFO("[exploration_manager]: Waiting for action server to start: %s", nav_server_name.c_str());
+  move_ac->waitForServer();
+  ROS_INFO("[exploration_manager]: %s is ready", nav_server_name.c_str());
+
+}
 
 //
 // panorama action functions
@@ -80,13 +121,12 @@ void panActiveCB()
   ROS_INFO("[exploration_manager]: Capturing panorama...");
 }
 
-void panDoneCB(const actionlib::SimpleClientGoalState& state,
-    const panorama::PanoramaResultConstPtr& result)
+void ExplorationManager::panDoneCB(const actionlib::SimpleClientGoalState& state, const panorama::PanoramaResultConstPtr& result)
 {
-  ROS_INFO("[exploration_manager]: Panorama completed with %s and saved to %s",
-      state.toString().c_str(), result->full_file_name.c_str());
-  if (state.toString().compare("SUCCEEDED") == 0)
+  ROS_INFO("[exploration_manager]: Panorama completed with %s and saved to %s", state.toString().c_str(), result->full_file_name.c_str());
+  if (state.toString().compare("SUCCEEDED") == 0) {
     pan_file = result->full_file_name;
+  }
 }
 
 //
@@ -102,11 +142,9 @@ void moveActiveCB()
   ROS_INFO("[exploration_manager]: Navigating to goal...");
 }
 
-void moveDoneCB(const actionlib::SimpleClientGoalState& state,
-    const scarab_msgs::MoveResultConstPtr& result)
+void ExplorationManager::moveDoneCB(const actionlib::SimpleClientGoalState& state, const scarab_msgs::MoveResultConstPtr& result)
 {
-  ROS_INFO("[exploration_manager]: Navigation completed with status: %s",
-      state.toString().c_str());
+  ROS_INFO("[exploration_manager]: Navigation completed with status: %s", state.toString().c_str());
   if (state != actionlib::SimpleClientGoalState::StateEnum::SUCCEEDED) {
     navigation_succeeded = false;
   }
@@ -116,18 +154,16 @@ void moveDoneCB(const actionlib::SimpleClientGoalState& state,
 // visualization functions
 //
 
-pcl::PointXYZRGB pixelToPCLPoint(const AngleGrid& grid, cv::Point px, int r,
-    int g, int b)
+pcl::PointXYZRGB pixelToPCLPoint(const grid_mapping::AngleGrid& grid, cv::Point pixel, int r, int g, int b)
 {
-  grid_mapping::Point pt = grid.subscriptsToPosition(px.y, px.x);
+  grid_mapping::Point pt = grid.subscriptsToPosition(pixel.y, pixel.x);
   pcl::PointXYZRGB pcl_point(r,g,b);
   pcl_point.x = pt.x;
   pcl_point.y = pt.y;
   return pcl_point;
 }
 
-CloudXYZRGB skeletonToPC(const AngleGrid& grid, const regions_vec& regions,
-    int r, int g, int b)
+CloudXYZRGB skeletonToPC(const grid_mapping::AngleGrid& grid, const regions_vec& regions, int r, int g, int b)
 {
   CloudXYZRGB skel_cloud;
   for (auto& region : regions) {
@@ -145,36 +181,36 @@ CloudXYZRGB skeletonToPC(const AngleGrid& grid, const regions_vec& regions,
   return skel_cloud;
 }
 
-void addPixelToPC(const AngleGrid& grid, CloudXYZRGB& pc, cv::Point px, int r,
-    int g, int b)
+void addPixelToPC(const grid_mapping::AngleGrid& grid, CloudXYZRGB& point_cloud, cv::Point pixel, int r, int g, int b)
 {
-  grid_mapping::Point pt = grid.subscriptsToPosition(px.y, px.x);
+  grid_mapping::Point point = grid.subscriptsToPosition(pixel.y, pixel.x);
   pcl::PointXYZRGB pcl_point(r,g,b);
-  pcl_point.x = pt.x;
-  pcl_point.y = pt.y;
-  pc.points.push_back(pcl_point);
-  pc.width++;
+  pcl_point.x = point.x;
+  pcl_point.y = point.y;
+  point_cloud.points.push_back(pcl_point);
+  point_cloud.width++;
 }
 
-void addPixelsToPC(const AngleGrid& grid, CloudXYZRGB& pc,
-    vector<cv::Point>& pxs, int r, int g, int b)
+void addPixelsToPC(const grid_mapping::AngleGrid& grid, CloudXYZRGB& point_cloud, vector<cv::Point>& pixels, int r, int g, int b)
 {
-  for (auto& px : pxs)
-    addPixelToPC(grid, pc, px, r, g, b);
+  for (auto& pixel : pixels) {
+    addPixelToPC(grid, point_cloud, pixel, r, g, b);
+  }
 }
 
-void addPixelsToPC(const AngleGrid& grid, CloudXYZRGB& pc,
-    vector<InfoPxPair>& info_px_pairs, int r, int g, int b)
+void addPixelsToPC(const grid_mapping::AngleGrid& grid, CloudXYZRGB& point_cloud, vector<InfoPxPair>& info_px_pairs, int r, int g, int b)
 {
-  for (auto& info_px_pair : info_px_pairs)
-    addPixelToPC(grid, pc, info_px_pair.px, r, g, b);
+  for (auto& info_px_pair : info_px_pairs) {
+    addPixelToPC(grid, point_cloud, info_px_pair.px, r, g, b);
+  }
 }
 
 //
 // coordination callbacks
 //
 
-bool getTrans(string source_frame, geometry_msgs::TransformStamped& trans)
+// TODO: remove transformations
+bool ExplorationManager::getTrans(string source_frame, geometry_msgs::TransformStamped& trans)
 {
   bool res = false;
   try {
@@ -182,13 +218,13 @@ bool getTrans(string source_frame, geometry_msgs::TransformStamped& trans)
     trans = tfBuffer.lookupTransform(my_frame, source_frame, ros::Time(0));
     res = true;
   } catch (tf2::TransformException &ex) {
-    ROS_WARN("[exploration_manager]: %s failed to fetch transform:\n%s",
-        tf_prefix.c_str(), ex.what());
+    ROS_WARN("[exploration_manager]: %s failed to fetch transform:\n%s", tf_prefix.c_str(), ex.what());
   }
   return res;
 }
 
-void mapCB(const grid_mapping::OccupancyGridConstPtr& msg)
+// TODO: remove transformations
+void ExplorationManager::mapCB(const grid_mapping::OccupancyGridConstPtr& msg)
 {
   static vector<grid_mapping::OccupancyGrid> msgs_to_process;
   received_new_map = true;
@@ -199,21 +235,19 @@ void mapCB(const grid_mapping::OccupancyGridConstPtr& msg)
     if (getTrans(grid.header.frame_id, tfs)) {
       grid_mapping::OccupancyGridConstPtr cpt(new grid_mapping::OccupancyGrid(grid));
       ang_grid.insertMap(msg, tfs);
-      ROS_INFO("[exploration_manager]: %s inserted map with frame_id %s",
-          tf_prefix.c_str(), msg->header.frame_id.c_str());
+      ROS_INFO("[exploration_manager]: %s inserted map with frame_id %s", tf_prefix.c_str(), msg->header.frame_id.c_str());
       viz_map_pub.publish(ang_grid.createROSOGMsg());
     } else {
-      ROS_WARN("[exploration_manager]: %s failed to insert map with frame_id "
-          "%s", tf_prefix.c_str(), msg->header.frame_id.c_str());
+      ROS_WARN("[exploration_manager]: %s failed to insert map with frame_id %s", tf_prefix.c_str(), msg->header.frame_id.c_str());
       return;
     }
   }
-  ROS_INFO("[exploration_manager]: processed %d messages in msgs_to_process",
-      (int)msgs_to_process.size());
+  ROS_INFO("[exploration_manager]: processed %d messages in msgs_to_process", (int)msgs_to_process.size());
   msgs_to_process.clear();
 }
 
-void goalPoseCB(const csqmi_exploration::PanGoalConstPtr& msg)
+// TODO: remove transformations
+void ExplorationManager::goalPoseCB(const csqmi_exploration::PanGoalConstPtr& msg)
 {
   static vector<csqmi_exploration::PanGoal> msgs_to_process;
   ++shared_goals_count;
@@ -229,20 +263,17 @@ void goalPoseCB(const csqmi_exploration::PanGoalConstPtr& msg)
       goal_pair.point = pt;
       goal_pair.id = goal_msg.goal_id;
       goals.push_back(goal_pair);
-      ROS_INFO("[exploration_manager]: %s added goal pose with id %d to goals",
-          tf_prefix.c_str(), goal_pair.id);
+      ROS_INFO("[exploration_manager]: %s added goal pose with id %d to goals", tf_prefix.c_str(), goal_pair.id);
     } else {
-      ROS_WARN("[exploration_manager]: %s failed to add goal pose with ID %d to"
-          "goals", tf_prefix.c_str(), goal_msg.goal_id);
+      ROS_WARN("[exploration_manager]: %s failed to add goal pose with ID %d to goals", tf_prefix.c_str(), goal_msg.goal_id);
       return;
     }
   }
-  ROS_INFO("[exploration_manager]: processed %d messages in msgs_to_process",
-      (int)msgs_to_process.size());
+  ROS_INFO("[exploration_manager]: processed %d messages in msgs_to_process", (int)msgs_to_process.size());
   msgs_to_process.clear();
 }
 
-void panPoseCB(const csqmi_exploration::PanGoalConstPtr& msg)
+void ExplorationManager::panPoseCB(const csqmi_exploration::PanGoalConstPtr& msg)
 {
   static vector<csqmi_exploration::PanGoal> msgs_to_process;
   msgs_to_process.push_back(*msg);
@@ -254,8 +285,7 @@ void panPoseCB(const csqmi_exploration::PanGoalConstPtr& msg)
       grid_mapping::Point in_pt(pan_msg.x, pan_msg.y);
       grid_mapping::Point pt = grid_mapping::Point::transformPoint(tfs, in_pt);
       pan_locations.push_back(pt);
-      ROS_INFO("[exploration_manager]: %s added panorama pose with id %d to "
-          "pan_locations", tf_prefix.c_str(), id);
+      ROS_INFO("[exploration_manager]: %s added panorama pose with id %d to pan_locations", tf_prefix.c_str(), id);
 
       if (goals.size() == 0)
         return;
@@ -263,23 +293,19 @@ void panPoseCB(const csqmi_exploration::PanGoalConstPtr& msg)
       for (int i = 0; i < goals.size(); ++i) {
         if (goals[i].id == id) {
           goals.erase(goals.begin()+i);
-          ROS_INFO("[exploration_manager]: %s found goal and panorama with "
-              "matching id: %d", tf_prefix.c_str(), id);
+          ROS_INFO("[exploration_manager]: %s found goal and panorama with matching id: %d", tf_prefix.c_str(), id);
           return;
         }
       }
 
-      ROS_INFO("[exploration_manager]: %s found no matching goal for panorama "
-          "with id: %d", tf_prefix.c_str(), id);
+      ROS_INFO("[exploration_manager]: %s found no matching goal for panorama with id: %d", tf_prefix.c_str(), id);
       std::stringstream ss;
       for (int i = 0; i < goals.size()-1; ++i) { ss << goals[i].id << ", "; }
       ss << goals.back().id;
       string id_str = ss.str();
-      ROS_INFO("[exploration_manager]: current list of goal ids is: %s", 
-          id_str.c_str());
+      ROS_INFO("[exploration_manager]: current list of goal ids is: %s", id_str.c_str());
     } else {
-      ROS_INFO("[exploration_manager]: %s failed to add panorama with ID %d to"
-          "captured panorama list", tf_prefix.c_str(), pan_msg.goal_id);
+      ROS_INFO("[exploration_manager]: %s failed to add panorama with ID %d to captured panorama list", tf_prefix.c_str(), pan_msg.goal_id);
     }
   }
   ROS_INFO("[exploration_manager]: processed %d messages in msgs_to_process",
@@ -291,16 +317,13 @@ void panPoseCB(const csqmi_exploration::PanGoalConstPtr& msg)
 // exploration functions
 //
 
-/*
- * Collect panorama, insert it into the angle grid, and publish the angle
- * grid, 2D rviz version, and panorama capture location
- */
-
-bool capturePanorama()
+// Collect panorama, insert it into the angle grid, and publish the angle
+// grid, 2D rviz version, and panorama capture location
+bool ExplorationManager::capturePanorama()
 {
   panorama::PanoramaGoal pan_goal;
   pan_goal.file_name = tf_prefix + "pan" + std::to_string(++pan_count);
-  pan_ac->sendGoal(pan_goal, &panDoneCB, &panActiveCB, &panFeedbackCB);
+  pan_ac->sendGoal(pan_goal, std::bind(&ExplorationManager::panDoneCB, this, std::placeholders::_1, std::placeholders::_2), &panActiveCB, &panFeedbackCB);
   ROS_INFO("[exploration_manager]: sent panorama goal to action server");
   pan_ac->waitForResult();
   if (pan_file.size() == 0) {
@@ -310,7 +333,7 @@ bool capturePanorama()
   }
 
   // create grid of just the panorama and publish
-  AngleGrid pan_grid(grid_mapping::Point(0.0, 0.0), 0.1, 1, 1);
+  grid_mapping::AngleGrid pan_grid(grid_mapping::Point(0.0, 0.0), 0.1, 1, 1);
   pan_grid.range_min = scan_range_min;
   pan_grid.range_max = scan_range_max;
   pan_grid.insertPanorama(pan_file);
@@ -325,14 +348,11 @@ bool capturePanorama()
     string my_pose_frame = tf_prefix + string("/base_link");
     geometry_msgs::TransformStamped other_tfs, my_tfs;
     if (getTrans(src_frame, other_tfs) && getTrans(my_pose_frame, my_tfs)) {
-      grid_mapping::Point other_pose(other_tfs.transform.translation.x,
-          other_tfs.transform.translation.y);
-      grid_mapping::Point my_pose(my_tfs.transform.translation.x,
-          my_tfs.transform.translation.y);
+      grid_mapping::Point other_pose(other_tfs.transform.translation.x, other_tfs.transform.translation.y);
+      grid_mapping::Point my_pose(my_tfs.transform.translation.x, my_tfs.transform.translation.y);
 
       if ((other_pose - my_pose).norm() < scan_range_max + 0.5) {
-        ROS_INFO_STREAM("[exploration_manager] Removing robot" << i << " at "
-            << other_pose << " from my map");
+        ROS_INFO_STREAM("[exploration_manager] Removing robot" << i << " at " << other_pose << " from my map");
         pan_grid.updateRobotCells(other_pose, 0.5);
       }
     }
@@ -362,8 +382,7 @@ bool capturePanorama()
       pan_pose.x = msg->pose.position.x;
       pan_pose.y = msg->pose.position.y;
       pan_pose_pub.publish(pan_pose);
-      ROS_INFO("[exploration_manager]: %s published panorama pose with id %d",
-          tf_prefix.c_str(), pan_pose.goal_id);
+      ROS_INFO("[exploration_manager]: %s published panorama pose with id %d", tf_prefix.c_str(), pan_pose.goal_id);
       break;
     }
   }
@@ -377,80 +396,14 @@ bool capturePanorama()
 // main(...)
 //
 
-int main(int argc, char** argv)
+// TODO: make sure actions are called properly
+void ExplorationManager::explorationLoop()
 {
-  /*
-   * initialize ROS components
-   */
+  ROS_INFO("[exploration_manager]: beginning exploration loop");
 
-  ros::init(argc, argv, "csqmi_exploration_manager");
-  ros::NodeHandle nh, pnh("~");
-  tf2_ros::TransformListener tfListener(tfBuffer);
-
-  ros::Publisher skel_pub, goal_pose_pub;
-  viz_map_pub = nh.advertise<nav_msgs::OccupancyGrid>("map_2D", 2);
-  pan_grid_pub = nh.advertise<grid_mapping::OccupancyGrid>("angle_grid", 2);
-  skel_pub = nh.advertise<PointCloud2>("skeleton", 2);
-  pan_pose_pub = nh.advertise<csqmi_exploration::PanGoal>("pan_pose", 2);
-  goal_pose_pub = nh.advertise<csqmi_exploration::PanGoal>("goal_pose", 2);
-
-  bool leader;
-  int calibration_dance_points;
-  double dance_radius;
-  if (!pnh.getParam("tf_prefix", tf_prefix) ||
-      !pnh.getParam("robot_id", robot_id) ||
-      !pnh.getParam("leader", leader) ||
-      !nh.getParam("/dance_points", calibration_dance_points) ||
-      !nh.getParam("/dance_radius", dance_radius) ||
-      !nh.getParam("/number_of_robots", number_of_robots) ||
-      !nh.getParam("/scan_range_min", scan_range_min) ||
-      !nh.getParam("/scan_range_max", scan_range_max)) {
-    ROS_FATAL("[exploration_manager]: failed to read params from server");
-    exit(EXIT_FAILURE);
-  }
-  ang_grid.frame_id = tf_prefix + "/map";
-
-  vector<ros::Subscriber> coord_subs;
-  if (number_of_robots > 1) {
-    for (int i = 1; i <= number_of_robots; ++i) {
-      if (i == robot_id)
-        continue;
-
-      string robot_ns = "/robot" + std::to_string(i);
-      coord_subs.push_back(nh.subscribe(robot_ns + "/angle_grid", 2, &mapCB));
-      coord_subs.push_back(nh.subscribe(robot_ns + "/goal_pose", 2, &goalPoseCB));
-      coord_subs.push_back(nh.subscribe(robot_ns + "/pan_pose", 2, &panPoseCB));
-    }
-  }
-
-  /*
-   * initialize angle grid for planning
-   */
-
-  ang_grid.range_min = scan_range_min;
-  ang_grid.range_max = scan_range_max;
-
-  /*
-   * Initialize action servers for panorama capture and navigation
-   */
-
-  string pan_server_name = "/" + tf_prefix + "/panorama";
-  pan_ac.reset(new PanAC(pan_server_name.c_str(), true));
-  ROS_INFO("[exploration_manager]: Waiting for action server to start: %s",
-      pan_server_name.c_str());
-  pan_ac->waitForServer();
-  ROS_INFO("[exploration_manager]: %s is ready", pan_server_name.c_str());
-
-  string nav_server_name = "/" + tf_prefix + "/move";
-  move_ac.reset(new MoveAC(nav_server_name.c_str(), true));
-  ROS_INFO("[exploration_manager]: Waiting for action server to start: %s",
-      nav_server_name.c_str());
-  move_ac->waitForServer();
-  ROS_INFO("[exploration_manager]: %s is ready", nav_server_name.c_str());
-
-  /*
-   * Give the other components/robots time to load before staring exploration
-   */
+  //
+  // Give the other components/robots time to load before staring exploration
+  //
 
   ros::Rate countdown(1);
   for (int i = 5; i > 0; --i) {
@@ -458,11 +411,11 @@ int main(int argc, char** argv)
     countdown.sleep();
   }
 
-  /*
-   * if this robot is a leader, capture an initial panorama before beginning the
-   * exploration loop; otherwise, wait for goals in robot_id order to abate a
-   * race condition between the non leader members of the team
-   */
+  //
+  // if this robot is a leader, capture an initial panorama before beginning the
+  // exploration loop; otherwise, wait for goals in robot_id order to abate a
+  // race condition between the non leader members of the team
+  //
 
   if (leader) {
     ROS_INFO("[exploration_manager]: capturing initial panorama");
@@ -470,8 +423,7 @@ int main(int argc, char** argv)
     string robot_frame = tf_prefix + "/base_link";
     geometry_msgs::TransformStamped tfs;
     if (!getTrans(robot_frame, tfs)) {
-      ROS_WARN("[exploration_manager] failed to fetch pose of robot for first "
-          "panorama. Using (0.0, 0.0) as an initial guess for the robot.");
+      ROS_WARN("[exploration_manager] failed to fetch pose of robot for first panorama. Using (0.0, 0.0) as an initial guess for the robot.");
       tfs.transform.translation.x = 0.0;
       tfs.transform.translation.y = 0.0;
     }
@@ -488,24 +440,23 @@ int main(int argc, char** argv)
   } else {
     while (shared_goals_count < robot_id) {
       countdown.sleep(); countdown.sleep();
-      ROS_INFO("[exploration_manager]: robot%d is waiting for %d goals to be "
-          "received before beginning exploration", robot_id, robot_id);
+      ROS_INFO("[exploration_manager]: robot%d is waiting for %d goals to be received before beginning exploration", robot_id, robot_id);
       ros::spinOnce();
     }
   }
 
-  /*
-   * exploration loop
-   */
+  //
+  // exploration loop
+  //
 
   while (ros::ok()) {
 
     // get the latest information from the team
     ros::spinOnce();
 
-    /*
-     * Compute next panorama capture location
-     */
+    //
+    // Compute next panorama capture location
+    //
 
     // compute skeleton
     cv::Mat skel;
@@ -524,12 +475,10 @@ int main(int argc, char** argv)
     regions_vec regions = partitionSkeleton(skel, pan_pixels);
 
     // find the point of each region with the hightest CSQMI
-    CSQMI objective(DepthCamera(180, scan_range_max, scan_range_min), 0.03);
     vector<InfoPxPair> goal_pairs;
     for (auto& reg : regions) {
-      vector<InfoPxPair> reg_csqmi = objective.csqmi(ang_grid, reg);
-      goal_pairs.push_back(*max_element(reg_csqmi.begin(), reg_csqmi.end(),
-            InfoPxPair::compare));
+      vector<InfoPxPair> reg_csqmi = objective->csqmi(ang_grid, reg);
+      goal_pairs.push_back(*max_element(reg_csqmi.begin(), reg_csqmi.end(), InfoPxPair::compare));
     }
 
     // sort highest to lowest csqmi
@@ -555,9 +504,9 @@ int main(int argc, char** argv)
       for (auto goal_pair : goals) {
         double goal_diff = (goal_pt - goal_pair.point).norm();
         if (goal_diff < 0.5) {
-          ROS_INFO_STREAM("[exploration_manager]: goal: " << goal_pt << " in" 
-              "proximity to goal: " << goal_pair.point << " with id: "
-              << goal_pair.id);
+          ROS_INFO_STREAM("[exploration_manager]: goal: " << goal_pt <<
+              " in proximity to goal: " << goal_pair.point <<
+              " with id: " << goal_pair.id);
           ++goal_it;
           continue;
         } else {
@@ -579,23 +528,23 @@ int main(int argc, char** argv)
       continue;
     }
 
-    /*
-     * Publish PointCloud2 of the skeleton, max points, and goal
-     */
+    //
+    // Publish sensor_msgs::PointCloud2 of the skeleton, max points, and goal
+    //
 
     CloudXYZRGB skel_pc = skeletonToPC(ang_grid, regions, 0, 0, 255);
     addPixelsToPC(ang_grid, skel_pc, pan_pixels, 255, 0, 0);
     addPixelsToPC(ang_grid, skel_pc, goal_pairs, 255, 255, 0);
     addPixelToPC(ang_grid, skel_pc, goal_it->px, 0, 255, 0);
 
-    PointCloud2 skel_pc_msg;
+    sensor_msgs::PointCloud2 skel_pc_msg;
     pcl::toROSMsg(skel_pc, skel_pc_msg);
     skel_pc_msg.header.frame_id = "/" + tf_prefix + "/map";
     skel_pub.publish(skel_pc_msg);
 
-    /*
-     * Navigate to the goal point
-     */
+    //
+    // Navigate to the goal point
+    //
 
     geometry_msgs::PoseStamped target_pose;
     target_pose.header.stamp = ros::Time::now();
@@ -614,22 +563,23 @@ int main(int argc, char** argv)
     goal_pose_msg.goal_id = robot_id*100 + pan_count + 1;
     goal_pose_pub.publish(goal_pose_msg);
 
-    move_ac->sendGoal(action_goal, &moveDoneCB, &moveActiveCB, &moveFeedbackCB);
+    move_ac->sendGoal(action_goal, std::bind(&ExplorationManager::moveDoneCB, this, std::placeholders::_1, std::placeholders::_2), &moveActiveCB, &moveFeedbackCB);
     move_ac->waitForResult();
     if (!navigation_succeeded) {
       ROS_INFO("[exploration_manager]: Navigation failed. Restarting planning process.");
       continue;
     }
 
-    /*
-     * Collect panorama, insert it into the angle grid, and publish the angle
-     * grid and 2D rviz version
-     */
+    //
+    // Collect panorama, insert it into the angle grid, and publish the angle
+    // grid and 2D rviz version
+    //
 
     capturePanorama();
 
     ROS_INFO("[exploration_manager]: Completed iteration loop %d", pan_count);
   }
 
-  return 0;
 }
+
+} // namespace csqmi_exploration
