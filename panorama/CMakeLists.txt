@@ -66,13 +66,11 @@ include_directories(
 )
 
 add_library(panorama_nodelet src/panorama_nodelet.cpp src/panorama.cpp)
-add_dependencies(panorama_nodelet ${catkin_LIBRARIES} 
-  ${${PROJECT_NAME}_EXPORTED_TARGETS})
+add_dependencies(panorama_nodelet ${${PROJECT_NAME}_EXPORTED_TARGETS})
 target_link_libraries(panorama_nodelet ${catkin_LIBRARIES} ${OPENNI2_LIBRARY})
 
 add_executable(panorama_node src/panorama_node.cpp src/panorama.cpp)
-add_dependencies(panorama_node ${catkin_LIBRARIES} 
-  ${${PROJECT_NAME}_EXPORTED_TARGETS})
+add_dependencies(panorama_node ${${PROJECT_NAME}_EXPORTED_TARGETS})
 target_link_libraries(panorama_node ${catkin_LIBRARIES} ${OPENNI2_LIBRARY})
 
 add_executable(action_client src/panorama_action_client.cpp)
