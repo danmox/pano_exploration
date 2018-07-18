@@ -1,3 +1,0 @@
-int8 id # the id of the robot 
----
-bool status # wether or not relative localization has been established

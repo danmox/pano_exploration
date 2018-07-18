@@ -29,11 +29,6 @@ add_message_files(
     PanGoal.msg
 )
 
-add_service_files(
-  FILES
-    InitRelLocalization.srv
-)
-
 generate_messages(
   DEPENDENCIES
     std_msgs

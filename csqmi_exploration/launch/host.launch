@@ -1,17 +1,12 @@
 <launch>
 
-  <arg name="ranging_radios"      default="false"/>
   <arg name="number_of_robots"    default="1"/>
-
   <arg name="env_loader"          value="/home/brent/MAST/catkin_MAST_ws/src/scarab/scarab/env/scarab_env_loader.zsh"/>
 
   <!-- global params -->
   <param name="/scan_range_min"   value="0.45"/>
   <param name="/scan_range_max"   value="4.0"/>
   <param name="/number_of_robots" value="$(arg number_of_robots)"/>
-  <param name="/dance_points"     value="0"/>
-  <param name="/dance_radius"     value="1"/>
-  <param name="/ranging_radios"   value="$(arg ranging_radios)"/>
 
   <!-- exploration visualization -->
   <node pkg="rviz" type="rviz" name="rviz" 
@@ -19,19 +14,6 @@
 
   <!-- rqt_console for logging -->
   <node pkg="rqt_console" type="rqt_console" name="rqt_console"/>
-
-  <!-- service to initialize relative localization -->
-  <node pkg="csqmi_exploration" type="init_relative_localization"
-    name="init_relative_localization" output="screen">
-    <remap from="init" to="init_relative_localization"/>
-  </node>
-
-  <!-- static transforms when ranging radios aren't in use
-  <node pkg="tf2_ros" type="static_transform_publisher" unless="$(arg ranging_radios)" 
-    name="robot2_relative_trans" args="0 1.2 0 0 0 0 robot1/map robot2/map" />
-  <node pkg="tf2_ros" type="static_transform_publisher" unless="$(arg ranging_radios)" 
-    name="robot3_relative_trans" args="0 -1.2 0 0 0 0 robot1/map robot3/map" />
-  -->
 
   <!-- Robot 1 -->
   <machine name="scarab43" address="192.168.131.43" user="brent"
