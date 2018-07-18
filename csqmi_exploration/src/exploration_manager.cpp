@@ -89,9 +89,6 @@ ExplorationManager::ExplorationManager(ros::NodeHandle pnh_, ros::NodeHandle nh_
   // Initialize action servers for panorama capture and navigation
   //
 
-  typedef actionlib::SimpleActionClient<panorama::PanoramaAction> PanAC;
-  typedef actionlib::SimpleActionClient<scarab_msgs::MoveAction> MoveAC;
-
   string pan_server_name = "/" + tf_prefix + "/panorama";
   pan_ac.reset(new PanAC(pan_server_name.c_str(), true));
   ROS_INFO("[exploration_manager]: Waiting for action server to start: %s", pan_server_name.c_str());
@@ -107,7 +104,7 @@ ExplorationManager::ExplorationManager(ros::NodeHandle pnh_, ros::NodeHandle nh_
 }
 
 //
-// panorama action functions
+// panorama action callback functions
 //
 
 void panFeedbackCB(const panorama::PanoramaFeedbackConstPtr& feedback)
@@ -121,6 +118,8 @@ void panActiveCB()
   ROS_INFO("[exploration_manager]: Capturing panorama...");
 }
 
+// when a panorama is captured, the action server returns the absolute file path
+// to the panorama bag file
 void ExplorationManager::panDoneCB(const actionlib::SimpleClientGoalState& state, const panorama::PanoramaResultConstPtr& result)
 {
   ROS_INFO("[exploration_manager]: Panorama completed with %s and saved to %s", state.toString().c_str(), result->full_file_name.c_str());
@@ -130,7 +129,7 @@ void ExplorationManager::panDoneCB(const actionlib::SimpleClientGoalState& state
 }
 
 //
-// hfn action functions
+// hfn action action callbacks
 //
 
 void moveFeedbackCB(const scarab_msgs::MoveFeedbackConstPtr& msg)
@@ -151,7 +150,8 @@ void ExplorationManager::moveDoneCB(const actionlib::SimpleClientGoalState& stat
 }
 
 //
-// visualization functions
+// visualization functions: for displaying the skeleton used for computing CSQMI
+// as a pointcloud in rviz
 //
 
 pcl::PointXYZRGB pixelToPCLPoint(const grid_mapping::AngleGrid& grid, cv::Point pixel, int r, int g, int b)
@@ -207,6 +207,13 @@ void addPixelsToPC(const grid_mapping::AngleGrid& grid, CloudXYZRGB& point_cloud
 
 //
 // coordination callbacks
+//
+// Agents exchange goals they are going to, goals they have completed, and map
+// updates after capturing panoramas. Goals a list of goals other agents are
+// actively pursuing is maintained and candidate goals are checked against this
+// list to prevent robots choosing the same location at which to capture a pano.
+// It is assumed that all agents are operating in a shared global reference
+// frame.
 //
 
 // TODO: remove transformations
@@ -317,10 +324,11 @@ void ExplorationManager::panPoseCB(const csqmi_exploration::PanGoalConstPtr& msg
 // exploration functions
 //
 
-// Collect panorama, insert it into the angle grid, and publish the angle
-// grid, 2D rviz version, and panorama capture location
+// Capture panorama, insert it into the angle grid, and publish the angle grid,
+// flattened 2D grid for rviz, and panorama capture location
 bool ExplorationManager::capturePanorama()
 {
+  // call panorama action
   panorama::PanoramaGoal pan_goal;
   pan_goal.file_name = tf_prefix + "pan" + std::to_string(++pan_count);
   pan_ac->sendGoal(pan_goal, std::bind(&ExplorationManager::panDoneCB, this, std::placeholders::_1, std::placeholders::_2), &panActiveCB, &panFeedbackCB);
@@ -332,13 +340,14 @@ bool ExplorationManager::capturePanorama()
     return false;
   }
 
-  // create grid of just the panorama and publish
+  // create map from the panorama
   grid_mapping::AngleGrid pan_grid(grid_mapping::Point(0.0, 0.0), 0.1, 1, 1);
   pan_grid.range_min = scan_range_min;
   pan_grid.range_max = scan_range_max;
   pan_grid.insertPanorama(pan_file);
 
-  // mark the position of other robots capture in the panorama as free
+  // often other robots are captured in a panorama and marked as obstacles in
+  // the resulting map; however, their location should be marked as free
   for (int i = 1; i <= number_of_robots; ++i) {
     if (i == robot_id) {
       continue;
@@ -347,10 +356,15 @@ bool ExplorationManager::capturePanorama()
     string src_frame = "robot" + std::to_string(i) + "/base_link";
     string my_pose_frame = tf_prefix + string("/base_link");
     geometry_msgs::TransformStamped other_tfs, my_tfs;
+    // TODO: subscribe to the other robots' poses instead of making tf calls?
     if (getTrans(src_frame, other_tfs) && getTrans(my_pose_frame, my_tfs)) {
+
+      // recover the pose of this robot and other robot in a common frame
       grid_mapping::Point other_pose(other_tfs.transform.translation.x, other_tfs.transform.translation.y);
       grid_mapping::Point my_pose(my_tfs.transform.translation.x, my_tfs.transform.translation.y);
 
+      // if the distance between poses is within the maximum scan range then it
+      // is possible the other robot was captured: mark its pose as free
       if ((other_pose - my_pose).norm() < scan_range_max + 0.5) {
         ROS_INFO_STREAM("[exploration_manager] Removing robot" << i << " at " << other_pose << " from my map");
         pan_grid.updateRobotCells(other_pose, 0.5);
@@ -358,19 +372,21 @@ bool ExplorationManager::capturePanorama()
     }
   }
 
-  // create grid_mapping::OccupancyGrid ROS message of pan_grid
+  // create grid_mapping::OccupancyGrid ROS message of the panorama map and
+  // share it with the other robots
   grid_mapping::OccupancyGrid pan_grid_msg = *pan_grid.createROSMsg();
   pan_grid_pub.publish(pan_grid_msg);
 
-  // insert the pan grid into ang grid
+  // insert the panorama map into this robot's map
   grid_mapping::OccupancyGridConstPtr pan_grid_msg_ptr;
   pan_grid_msg_ptr.reset(new grid_mapping::OccupancyGrid(pan_grid_msg));
   ang_grid.insertMap(pan_grid_msg_ptr);
 
-  // publish a 2D visualization of the angle grid
+  // publish a 2D visualization of this robot's angle grid
   viz_map_pub.publish(ang_grid.createROSOGMsg());
 
-  // read panoaram capture location
+  // determine the capture location of the completed panorama and broadcast it
+  // to the other agents
   rosbag::Bag panbag;
   panbag.open(pan_file, rosbag::bagmode::Read);
   csqmi_exploration::PanGoal pan_pose;
@@ -386,8 +402,12 @@ bool ExplorationManager::capturePanorama()
       break;
     }
   }
-  panbag.close();
+
+  // store the capture location
   pan_locations.push_back(grid_mapping::Point(pan_pose.x, pan_pose.y));
+
+  // close the panorama bag
+  panbag.close();
 
   return true;
 }
@@ -412,9 +432,9 @@ void ExplorationManager::explorationLoop()
   }
 
   //
-  // if this robot is a leader, capture an initial panorama before beginning the
-  // exploration loop; otherwise, wait for goals in robot_id order to abate a
-  // race condition between the non leader members of the team
+  // if the robots begin in close proximity, only the leader should begin by
+  // capturing a panorama; if this robot is not the leader it should wait
+  // to receive shared goals from the other agents
   //
 
   if (leader) {
@@ -438,6 +458,7 @@ void ExplorationManager::explorationLoop()
     capturePanorama();
 
   } else {
+    // TODO: find a better way of doing this
     while (shared_goals_count < robot_id) {
       countdown.sleep(); countdown.sleep();
       ROS_INFO("[exploration_manager]: robot%d is waiting for %d goals to be received before beginning exploration", robot_id, robot_id);
@@ -465,7 +486,7 @@ void ExplorationManager::explorationLoop()
     // get the latest information from the team
     ros::spinOnce();
 
-    // partition skel
+    // partition skeleton into regions divided by past panorama capture locations
     vector<cv::Point> pan_pixels;
     for (auto pt : pan_locations) {
       cv::Point po;
@@ -474,7 +495,7 @@ void ExplorationManager::explorationLoop()
     }
     regions_vec regions = partitionSkeleton(skel, pan_pixels);
 
-    // find the point of each region with the hightest CSQMI
+    // find the point of each region with the hightest CSQMI: these are the goals
     vector<InfoPxPair> goal_pairs;
     for (auto& reg : regions) {
       vector<InfoPxPair> reg_csqmi = objective->csqmi(ang_grid, reg);
@@ -500,7 +521,7 @@ void ExplorationManager::explorationLoop()
         break;
       }
 
-      // make sure agent goals do not collide
+      // make sure agent goals are not in proximity
       for (auto goal_pair : goals) {
         double goal_diff = (goal_pt - goal_pair.point).norm();
         if (goal_diff < 0.5) {
@@ -516,7 +537,8 @@ void ExplorationManager::explorationLoop()
       }
     }
 
-    // if no goal was found, wait for a new map and then start planning again
+    // if all goals are disqualified: wait for a new map and then start planning again
+    // TODO: add pause here?
     if (!goal_found) {
       ROS_WARN("[exploration_manager]: failed to find a goal... will wait for new map");
       received_new_map = false;
@@ -569,11 +591,6 @@ void ExplorationManager::explorationLoop()
       ROS_INFO("[exploration_manager]: Navigation failed. Restarting planning process.");
       continue;
     }
-
-    //
-    // Collect panorama, insert it into the angle grid, and publish the angle
-    // grid and 2D rviz version
-    //
 
     capturePanorama();
 
