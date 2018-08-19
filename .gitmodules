@@ -1,3 +1,7 @@
 [submodule "openni2_xtion"]
 	path = openni2_xtion
 	url = git@github.com:danmox/openni2_xtion.git
+[submodule "grid_mapping"]
+	path = grid_mapping
+	url = git@github.com:danmox/grid_mapping.git
+	branch = pano-exploration
