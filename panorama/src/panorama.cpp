@@ -186,13 +186,13 @@ void Panorama::captureLoop()
   }
 
   // open bag
-  ROS_INFO("[panorama] openning bag");
+  ROS_DEBUG("[panorama] openning bag");
   string full_file_name = save_directory + '/' + file_name + ".bag";
   rosbag::Bag bag;
   bag.open(full_file_name.c_str(), rosbag::bagmode::Write);
 
   // save panorama pose
-  ROS_INFO("[panorama] saving panorama pose");
+  ROS_DEBUG("[panorama] saving panorama pose");
   TransformStamped t_robot_world;
   if(!getTrans(world_frame, robot_frame, ros::Time(0), t_robot_world)) {
     ROS_ERROR("[panorama] unable to save panorama pose: aborting");
@@ -203,33 +203,36 @@ void Panorama::captureLoop()
     return;
   }
   PoseStamped pano_pose = transToPose(t_robot_world);
-  bag.write("panorama_pose", pano_pose.header.stamp, pano_pose);
+  bag.write("/panorama_pose", pano_pose.header.stamp, pano_pose);
 
   // save camera info messages
-  ROS_INFO("[panorama] saving camera info messages");
-  bag.write("color_camera_info", rgbd_ptr->color_info->header.stamp,
+  ROS_DEBUG("[panorama] saving camera info messages");
+  bag.write("/color_camera_info", rgbd_ptr->color_info->header.stamp,
       rgbd_ptr->color_info);
-  bag.write("depth_camera_info", rgbd_ptr->depth_info->header.stamp,
+  bag.write("/depth_camera_info", rgbd_ptr->depth_info->header.stamp,
       rgbd_ptr->depth_info);
 
   // capture panorama frames
   ros::Rate loop_rate(30);
   int frame = 1;
-  double last_frame_heading = current_heading, total_turn = 0.0;
+  double last_frame_heading(current_heading), total_turn(0.0);
   bool complete = false;
-  ROS_INFO("[panorama] beginning frame loop");
-  while (!complete) {
+  ROS_DEBUG("[panorama] beginning frame loop");
+  while (!complete && nh.ok()) {
+    ROS_DEBUG("[panorama] in capture loop");
 
     // check if action has been cancelled
     if (!as.isActive() || as.isPreemptRequested()) {
+      ROS_DEBUG("[panorama] goal cancelled, exiting capture loop");
       sendSpinCommand(0.0);
       bag.close();
       return;
     }
 
-    // publish velocity command
+    ROS_DEBUG("[panorama] sending spin command");
     sendSpinCommand(spin_speed);
 
+    // determine if a frame should be captured
     bool capture_frame = false;
     if (!continuous_capture) {
       capture_frame = sgn(headDiff(capture_angles[frame])) != sgn(spin_speed);
@@ -237,36 +240,42 @@ void Panorama::captureLoop()
       // in continuous mode, only capture frames when robot is turning
       double tmp = -sgn(spin_speed)*headDiff(last_frame_heading);
       capture_frame = -sgn(spin_speed)*headDiff(last_frame_heading) > 0.01;
-      //ROS_INFO_THROTTLE(0.5, "[panorama] tmp = %.4f, capture_frame = %d", tmp, capture_frame);
     }
 
     // save data if the robot has reached the desired frame heading
     if (capture_frame) {
 
-      // fetch synchornized sensor data
+      // fetch pose timestamp
       ros::Time frame_stamp;
       {
         lock_guard<mutex> lock(data_mutex);
-        // save image data to bag
-        bag.write("color", rgbd_ptr->color->header.stamp, rgbd_ptr->color);
-        bag.write("depth", rgbd_ptr->depth->header.stamp, rgbd_ptr->depth);
         frame_stamp = pose_timestamp;
       }
 
       // save camera pose
       TransformStamped camera_trans;
-      if(!getTrans(world_frame, camera_frame, frame_stamp, camera_trans))
+      if(!getTrans(world_frame, camera_frame, frame_stamp, camera_trans)) {
+        ROS_WARN("[panorama] unable to fetch camera pose, skipping this frame");
         continue;
+      }
       PoseStamped camera_pose = transToPose(camera_trans);
-      bag.write("camera_pose", camera_pose.header.stamp, camera_pose);
+      bag.write("/camera_pose", camera_pose.header.stamp, camera_pose);
+
+      // save images
+      {
+        lock_guard<mutex> lock(data_mutex);
+        // save image data to bag
+        bag.write("/color", rgbd_ptr->color->header.stamp, rgbd_ptr->color);
+        bag.write("/depth", rgbd_ptr->depth->header.stamp, rgbd_ptr->depth);
+      }
 
       // update the total angular displacement since robot started pano
       double this_frame_heading;
-      this_frame_heading = tf::getYaw(camera_trans.transform.rotation);
-      this_frame_heading = constrainAngle(this_frame_heading);
+      this_frame_heading = constrainAngle(tf::getYaw(camera_trans.transform.rotation));
       total_turn += constrainAngle(this_frame_heading - last_frame_heading);
       last_frame_heading = this_frame_heading;
 
+      // send feedback
       panorama::PanoramaFeedback feedback;
       feedback.frames_captured = frame++;
       as.publishFeedback(feedback);
@@ -276,6 +285,8 @@ void Panorama::captureLoop()
       } else {
         complete = total_turn > sgn(spin_speed)*2.0*M_PI;
       }
+    } else {
+      ROS_DEBUG("[panorama] capture_frame is false");
     }
 
     loop_rate.sleep();
