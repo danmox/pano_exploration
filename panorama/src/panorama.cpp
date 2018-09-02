@@ -255,7 +255,7 @@ void Panorama::captureLoop()
       // save camera pose
       TransformStamped camera_trans;
       if(!getTrans(world_frame, camera_frame, frame_stamp, camera_trans)) {
-        ROS_WARN("[panorama] unable to fetch camera pose, skipping this frame");
+        loop_rate.sleep();
         continue;
       }
       PoseStamped camera_pose = transToPose(camera_trans);
