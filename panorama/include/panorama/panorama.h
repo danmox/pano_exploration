@@ -31,7 +31,7 @@ class Panorama
 
     // syncronize color, depth images with the pose from SLAM
     openni2_xtion::RGBDSensor xtion;
-    openni2_xtion::TimeFilter<openni2_xtion::RGBDFramePtr, 
+    openni2_xtion::TimeFilter<openni2_xtion::RGBDFramePtr,
       geometry_msgs::PoseStampedConstPtr> time_filter;
 
     // actionlib
@@ -59,11 +59,11 @@ class Panorama
     // heading of the robot, respecting (-pi, pi]
     double headDiff(double);
 
-    // create and publish a geometry_msgs::Twist velocity command to the 
+    // create and publish a geometry_msgs::Twist velocity command to the
     // robot with angular velocity about z set to the input
     void sendSpinCommand(double);
 
-    // fetch a transform from the tf tree between the specified frames at 
+    // fetch a transform from the tf tree between the specified frames at
     // the desired time and store the result in the templated data structure
     // using tf2 to perform necessary conversions
     template <class T>

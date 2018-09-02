@@ -11,8 +11,8 @@ namespace rc = ros::console;
 using namespace std;
 using namespace geometry_msgs;
 
-template <typename T> 
-int sgn(T val) 
+template <typename T>
+int sgn(T val)
 {
   return (T(0) < val) - (val < T(0));
 }
@@ -32,7 +32,7 @@ namespace panorama {
 
 Panorama::Panorama(ros::NodeHandle nh_, ros::NodeHandle pnh_, string name) :
   listener(tf_buffer),
-  as(nh_, name, false), 
+  as(nh_, name, false),
   action_server_name(name)
 {
   nh = nh_;
@@ -110,7 +110,7 @@ double constrainAngle(double angle)
 
 // store pointers to color and depth images and the robot pose estimated by
 // laser slam and compute the current heading of the robot
-void Panorama::syncCB(const openni2_xtion::RGBDFramePtr& rgbd_msg, 
+void Panorama::syncCB(const openni2_xtion::RGBDFramePtr& rgbd_msg,
                       const geometry_msgs::PoseStamped::ConstPtr& pose_msg)
 {
   lock_guard<mutex> lock(data_mutex);
@@ -119,7 +119,7 @@ void Panorama::syncCB(const openni2_xtion::RGBDFramePtr& rgbd_msg,
   current_heading = constrainAngle(tf::getYaw(pose_msg->pose.orientation));
   /*
   ROS_DEBUG("[panorama] messages received with timestamp "
-      "difference: %f", fabs(rgbd_msg->header.stamp.toSec() - 
+      "difference: %f", fabs(rgbd_msg->header.stamp.toSec() -
         odom->header.stamp.toSec()));
         */
 }
@@ -130,7 +130,7 @@ void Panorama::preemptCB()
   as.setPreempted();
 }
 
-// prepare to execute a goal: join the main thread if it has not already 
+// prepare to execute a goal: join the main thread if it has not already
 // record the desired panorama name and spawn the panorama caputre thread
 void Panorama::goalCB()
 {
@@ -145,7 +145,7 @@ void Panorama::goalCB()
 }
 
 // compute the difference between goal_heading and the robot's current heading
-// as reported by wheel odometry (wheel odometry yields the most accurate 
+// as reported by wheel odometry (wheel odometry yields the most accurate
 // heading estimate over 2pi)
 double Panorama::headDiff(double goal_heading)
 {
@@ -242,7 +242,7 @@ void Panorama::captureLoop()
 
     // save data if the robot has reached the desired frame heading
     if (capture_frame) {
-      
+
       // fetch synchornized sensor data
       ros::Time frame_stamp;
       {
