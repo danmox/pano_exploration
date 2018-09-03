@@ -56,11 +56,11 @@ int main(int argc, char** argv)
   for (auto& reg : regions) {
     vector<InfoPxPair> reg_mi = objective.csqmi(ang_grid, reg);
     max_csqmi_pxs.push_back(*max_element(reg_mi.begin(), reg_mi.end(),
-        InfoPxPair::compare));
+        InfoPxPair::lesser));
   }
 
   // sort the max region points and choose the goal point
-  std::sort(max_csqmi_pxs.begin(), max_csqmi_pxs.end(), InfoPxPair::compare);
+  std::sort(max_csqmi_pxs.begin(), max_csqmi_pxs.end(), InfoPxPair::lesser);
   InfoPxPair goal_pair = max_csqmi_pxs.back();
   grid_mapping::Point goal_pose = ang_grid.subscriptsToPosition(goal_pair.px.y,
       goal_pair.px.x);
@@ -88,7 +88,7 @@ int main(int argc, char** argv)
   vector<InfoPxPair> fs_csqmi = objective.csqmi(ang_grid, free_space_pixels);
 
   // find max CSQMI value and pixel
-  InfoPxPair max_pair = *max_element(fs_csqmi.begin(), fs_csqmi.end(), InfoPxPair::compare);
+  InfoPxPair max_pair = *max_element(fs_csqmi.begin(), fs_csqmi.end(), InfoPxPair::lesser);
 
   // create image of CSQMI reward surface
   Mat csqmi_img(ang_grid.h, ang_grid.w, CV_8UC1, Scalar(127));

@@ -54,9 +54,14 @@ struct InfoPxPair
 
   InfoPxPair(double csqmi_, cv::Point px_) : csqmi(csqmi_), px(px_) {}
 
-  static bool compare(InfoPxPair pp1, InfoPxPair pp2)
+  static bool lesser(InfoPxPair pp1, InfoPxPair pp2)
   {
     return pp1.csqmi < pp2.csqmi;
+  }
+
+  static bool greater(InfoPxPair pp1, InfoPxPair pp2)
+  {
+    return pp1.csqmi > pp2.csqmi;
   }
 };
 
