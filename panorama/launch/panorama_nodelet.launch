@@ -1,29 +1,35 @@
 <launch>
 
-  <arg name="debug"               default="false"/>
-  <arg name="spin_speed"          default="0.25"/>
-  <arg name="number_of_frames"    default="72"/>
-  <arg name="save_directory"      default="$(env HOME)/.ros/panoramas"/>
-  <arg name="image_registration"  default="true"/>
-  <arg name="world_frame"/>
-  <arg name="robot_frame"/>
-  <arg name="camera_frame"/>
-  <arg name="odom_frame"/>
+    <arg name="debug"                 default="false"/>
+    <arg name="spin_speed"            default="0.25"/>
+    <arg name="number_of_frames"      default="72"/>
+    <arg name="continuous_capture"    default="true"/>
+    <arg name="save_directory"        default="$(env HOME)/.ros/panos"/>
+    <arg name="image_registration"    default="true"/>
+    <arg name="camera_auto_settings"  default="false"/>
+    <arg name="exposure"              default="100"/>
+    <arg name="world_frame"/>
+    <arg name="robot_frame"/>
+    <arg name="camera_frame"/>
 
-  <node pkg="nodelet" type="nodelet" name="panorama_nodelet" 
-      args="standalone panorama/PanoramaNodelet" output="screen">
-    <remap from="odom"     to="wheel_odometry"/>
-    <remap from="velocity" to="velocity_commands"/>
+    <node pkg="nodelet"
+          type="nodelet"
+          name="panorama_nodelet"
+          args="standalone panorama/PanoramaNodelet"
+          output="screen">
+      <remap from="velocity" to="cmd_vel"/>
 
-    <param name="debug"               value="$(arg debug)"/>
-    <param name="spin_speed"          value="$(arg spin_speed)"/>
-    <param name="number_of_frames"    value="$(arg number_of_frames)"/>
-    <param name="save_directory"      value="$(arg save_directory)"/>
-    <param name="world_frame"         value="$(arg world_frame)"/>
-    <param name="camera_frame"        value="$(arg camera_frame)"/>
-    <param name="robot_frame"         value="$(arg robot_frame)"/>
-    <param name="odom_frame"          value="$(arg odom_frame)"/>
-    <param name="image_registration"  value="$(arg image_registration)"/> 
+      <param name="debug"                 value="$(arg debug)"/>
+      <param name="spin_speed"            value="$(arg spin_speed)"/>
+      <param name="number_of_frames"      value="$(arg number_of_frames)"/>
+      <param name="save_directory"        value="$(arg save_directory)"/>
+      <param name="world_frame"           value="$(arg world_frame)"/>
+      <param name="camera_frame"          value="$(arg camera_frame)"/>
+      <param name="robot_frame"           value="$(arg robot_frame)"/>
+      <param name="image_registration"    value="$(arg image_registration)"/>
+      <param name="camera_auto_settings"  value="$(arg camera_auto_settings)"/>
+      <param name="exposure"              value="$(arg exposure)"/>
+      <param name="continuous_capture"    value="$(arg continuous_capture)"/>
   </node>
 
 </launch>

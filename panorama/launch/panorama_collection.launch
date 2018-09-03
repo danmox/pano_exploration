@@ -1,20 +1,43 @@
 <launch>
 
-  <arg name="camera"      default="camera"/>
-  <arg name="tf_prefix"   default="/"/>
-  <arg name="exposure"    default="100"/>
+  <arg name="debug"       default="false" /> <!-- change panorama_node verbosity to debug -->
+  <arg name="camera"      default="camera" />
+  <arg name="tf_prefix"   default="$(env AGENT)" />
+  <arg name="exposure"    default="100" />
+  <arg name="world_frame" default="$(arg tf_prefix)/map_hokuyo" />
+
+  <!-- scarab components -->
+  <include file="$(find scarab)/launch/slam.launch">
+    <arg name="agent" value="$(arg tf_prefix)" />
+  </include>
 
   <group ns="$(arg tf_prefix)">
 
-    <!-- scarab components -->
-    <include file="$(find scarab)/scarab.launch"/>
-
     <!-- panorama action server node -->
-    <include file="$(find panorama)/launch/panorama_node.launch">
-      <arg name="world_frame"     value="$(arg tf_prefix)/map"/>
-      <arg name="camera_frame"    value="$(arg tf_prefix)/$(arg camera)_rgb_frame"/>
-      <arg name="robot_frame"     value="$(arg tf_prefix)/base_link"/>
-      <arg name="exposure"        value="$(arg exposure)"/>
+    <include file="$(find panorama)/launch/panorama_nodelet.launch">
+      <arg name="debug"           value="$(arg debug)" />
+      <arg name="world_frame"     value="$(arg world_frame)" />
+      <arg name="camera_frame"    value="$(arg tf_prefix)/$(arg camera)_rgb_frame" />
+      <arg name="robot_frame"     value="$(arg tf_prefix)/base_link" />
+      <arg name="exposure"        value="$(arg exposure)" />
+    </include>
+
+    <!-- static transform for xtion: base_link -> camera_link -->
+    <node pkg="scarab"
+          name="camera_tf_broadcaster"
+          type="camera_tf_broadcaster.py"
+          respawn="false"
+          output="screen">
+      <param name="agent" value="$(arg tf_prefix)" />
+    </node>
+
+    <!-- xtion tilt servo -->
+    <include file="$(find scarab)/launch/servo.launch"/>
+
+    <!-- reasonable defaults for the relative pose between xtion frames -->
+    <include file="$(find rgbd_launch)/launch/kinect_frames.launch">
+      <arg name="camera" value="$(arg camera)" />
+      <arg name="tf_prefix" value="$(arg tf_prefix)" />
     </include>
 
   </group>
