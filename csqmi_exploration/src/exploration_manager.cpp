@@ -30,7 +30,7 @@ typedef pcl::PointCloud<pcl::PointXYZRGB> CloudXYZRGB;
 
 ExplorationManager::ExplorationManager(ros::NodeHandle pnh_, ros::NodeHandle nh_) :
   nh(nh_),
-  pnh(pnh),
+  pnh(pnh_),
   pan_count(0),
   shared_goals_count(0),
   received_new_map(false),
@@ -52,11 +52,14 @@ ExplorationManager::ExplorationManager(ros::NodeHandle pnh_, ros::NodeHandle nh_
 
   if (!pnh.getParam("tf_prefix", tf_prefix) ||
       !pnh.getParam("robot_id", robot_id) ||
-      !pnh.getParam("leader", leader) ||
-      !nh.getParam("/number_of_robots", number_of_robots) ||
+      !pnh.getParam("leader", leader)) {
+    ROS_FATAL("[ExplorationManager]: failed to read private params from server");
+    exit(EXIT_FAILURE);
+  }
+  if (!nh.getParam("/number_of_robots", number_of_robots) ||
       !nh.getParam("/scan_range_min", scan_range_min) ||
       !nh.getParam("/scan_range_max", scan_range_max)) {
-    ROS_FATAL("[exploration_manager]: failed to read params from server");
+    ROS_FATAL("[ExplorationManager]: failed to read global params from server");
     exit(EXIT_FAILURE);
   }
 
@@ -91,15 +94,15 @@ ExplorationManager::ExplorationManager(ros::NodeHandle pnh_, ros::NodeHandle nh_
 
   string pan_server_name = "/" + tf_prefix + "/panorama";
   pan_ac.reset(new PanAC(pan_server_name.c_str(), true));
-  ROS_INFO("[exploration_manager]: Waiting for action server to start: %s", pan_server_name.c_str());
+  ROS_INFO("[ExplorationManager]: Waiting for action server to start: %s", pan_server_name.c_str());
   pan_ac->waitForServer();
-  ROS_INFO("[exploration_manager]: %s is ready", pan_server_name.c_str());
+  ROS_INFO("[ExplorationManager]: %s is ready", pan_server_name.c_str());
 
   string nav_server_name = "/" + tf_prefix + "/move";
   move_ac.reset(new MoveAC(nav_server_name.c_str(), true));
-  ROS_INFO("[exploration_manager]: Waiting for action server to start: %s", nav_server_name.c_str());
+  ROS_INFO("[ExplorationManager]: Waiting for action server to start: %s", nav_server_name.c_str());
   move_ac->waitForServer();
-  ROS_INFO("[exploration_manager]: %s is ready", nav_server_name.c_str());
+  ROS_INFO("[ExplorationManager]: %s is ready", nav_server_name.c_str());
 
 }
 
@@ -109,20 +112,20 @@ ExplorationManager::ExplorationManager(ros::NodeHandle pnh_, ros::NodeHandle nh_
 
 void panFeedbackCB(const panorama::PanoramaFeedbackConstPtr& feedback)
 {
-  //ROS_INFO("[exploration_manager]: frames captured: %d",
+  //ROS_INFO("[ExplorationManager]: frames captured: %d",
   //    feedback->frames_captured);
 }
 
 void panActiveCB()
 {
-  ROS_INFO("[exploration_manager]: Capturing panorama...");
+  ROS_INFO("[ExplorationManager]: Capturing panorama...");
 }
 
 // when a panorama is captured, the action server returns the absolute file path
 // to the panorama bag file
 void ExplorationManager::panDoneCB(const actionlib::SimpleClientGoalState& state, const panorama::PanoramaResultConstPtr& result)
 {
-  ROS_INFO("[exploration_manager]: Panorama completed with %s and saved to %s", state.toString().c_str(), result->full_file_name.c_str());
+  ROS_INFO("[ExplorationManager]: Panorama completed with %s and saved to %s", state.toString().c_str(), result->full_file_name.c_str());
   if (state.toString().compare("SUCCEEDED") == 0) {
     pan_file = result->full_file_name;
   }
@@ -138,12 +141,12 @@ void moveFeedbackCB(const scarab_msgs::MoveFeedbackConstPtr& msg)
 
 void moveActiveCB()
 {
-  ROS_INFO("[exploration_manager]: Navigating to goal...");
+  ROS_INFO("[ExplorationManager]: Navigating to goal...");
 }
 
 void ExplorationManager::moveDoneCB(const actionlib::SimpleClientGoalState& state, const scarab_msgs::MoveResultConstPtr& result)
 {
-  ROS_INFO("[exploration_manager]: Navigation completed with status: %s", state.toString().c_str());
+  ROS_INFO("[ExplorationManager]: Navigation completed with status: %s", state.toString().c_str());
   if (state != actionlib::SimpleClientGoalState::StateEnum::SUCCEEDED) {
     navigation_succeeded = false;
   }
@@ -225,7 +228,7 @@ bool ExplorationManager::getTrans(string source_frame, geometry_msgs::TransformS
     trans = tfBuffer.lookupTransform(my_frame, source_frame, ros::Time(0));
     res = true;
   } catch (tf2::TransformException &ex) {
-    ROS_WARN("[exploration_manager]: %s failed to fetch transform:\n%s", tf_prefix.c_str(), ex.what());
+    ROS_WARN("[ExplorationManager]: %s failed to fetch transform:\n%s", tf_prefix.c_str(), ex.what());
   }
   return res;
 }
@@ -242,14 +245,14 @@ void ExplorationManager::mapCB(const grid_mapping::OccupancyGridConstPtr& msg)
     if (getTrans(grid.header.frame_id, tfs)) {
       grid_mapping::OccupancyGridConstPtr cpt(new grid_mapping::OccupancyGrid(grid));
       ang_grid.insertMap(msg, tfs);
-      ROS_INFO("[exploration_manager]: %s inserted map with frame_id %s", tf_prefix.c_str(), msg->header.frame_id.c_str());
+      ROS_INFO("[ExplorationManager]: %s inserted map with frame_id %s", tf_prefix.c_str(), msg->header.frame_id.c_str());
       viz_map_pub.publish(ang_grid.createROSOGMsg());
     } else {
-      ROS_WARN("[exploration_manager]: %s failed to insert map with frame_id %s", tf_prefix.c_str(), msg->header.frame_id.c_str());
+      ROS_WARN("[ExplorationManager]: %s failed to insert map with frame_id %s", tf_prefix.c_str(), msg->header.frame_id.c_str());
       return;
     }
   }
-  ROS_INFO("[exploration_manager]: processed %d messages in msgs_to_process", (int)msgs_to_process.size());
+  ROS_INFO("[ExplorationManager]: processed %d messages in msgs_to_process", (int)msgs_to_process.size());
   msgs_to_process.clear();
 }
 
@@ -270,13 +273,13 @@ void ExplorationManager::goalPoseCB(const csqmi_exploration::PanGoalConstPtr& ms
       goal_pair.point = pt;
       goal_pair.id = goal_msg.goal_id;
       goals.push_back(goal_pair);
-      ROS_INFO("[exploration_manager]: %s added goal pose with id %d to goals", tf_prefix.c_str(), goal_pair.id);
+      ROS_INFO("[ExplorationManager]: %s added goal pose with id %d to goals", tf_prefix.c_str(), goal_pair.id);
     } else {
-      ROS_WARN("[exploration_manager]: %s failed to add goal pose with ID %d to goals", tf_prefix.c_str(), goal_msg.goal_id);
+      ROS_WARN("[ExplorationManager]: %s failed to add goal pose with ID %d to goals", tf_prefix.c_str(), goal_msg.goal_id);
       return;
     }
   }
-  ROS_INFO("[exploration_manager]: processed %d messages in msgs_to_process", (int)msgs_to_process.size());
+  ROS_INFO("[ExplorationManager]: processed %d messages in msgs_to_process", (int)msgs_to_process.size());
   msgs_to_process.clear();
 }
 
@@ -292,7 +295,7 @@ void ExplorationManager::panPoseCB(const csqmi_exploration::PanGoalConstPtr& msg
       grid_mapping::Point in_pt(pan_msg.x, pan_msg.y);
       grid_mapping::Point pt = grid_mapping::Point::transformPoint(tfs, in_pt);
       pan_locations.push_back(pt);
-      ROS_INFO("[exploration_manager]: %s added panorama pose with id %d to pan_locations", tf_prefix.c_str(), id);
+      ROS_INFO("[ExplorationManager]: %s added panorama pose with id %d to pan_locations", tf_prefix.c_str(), id);
 
       if (goals.size() == 0)
         return;
@@ -300,22 +303,22 @@ void ExplorationManager::panPoseCB(const csqmi_exploration::PanGoalConstPtr& msg
       for (int i = 0; i < goals.size(); ++i) {
         if (goals[i].id == id) {
           goals.erase(goals.begin()+i);
-          ROS_INFO("[exploration_manager]: %s found goal and panorama with matching id: %d", tf_prefix.c_str(), id);
+          ROS_INFO("[ExplorationManager]: %s found goal and panorama with matching id: %d", tf_prefix.c_str(), id);
           return;
         }
       }
 
-      ROS_INFO("[exploration_manager]: %s found no matching goal for panorama with id: %d", tf_prefix.c_str(), id);
+      ROS_INFO("[ExplorationManager]: %s found no matching goal for panorama with id: %d", tf_prefix.c_str(), id);
       std::stringstream ss;
       for (int i = 0; i < goals.size()-1; ++i) { ss << goals[i].id << ", "; }
       ss << goals.back().id;
       string id_str = ss.str();
-      ROS_INFO("[exploration_manager]: current list of goal ids is: %s", id_str.c_str());
+      ROS_INFO("[ExplorationManager]: current list of goal ids is: %s", id_str.c_str());
     } else {
-      ROS_INFO("[exploration_manager]: %s failed to add panorama with ID %d to captured panorama list", tf_prefix.c_str(), pan_msg.goal_id);
+      ROS_INFO("[ExplorationManager]: %s failed to add panorama with ID %d to captured panorama list", tf_prefix.c_str(), pan_msg.goal_id);
     }
   }
-  ROS_INFO("[exploration_manager]: processed %d messages in msgs_to_process",
+  ROS_INFO("[ExplorationManager]: processed %d messages in msgs_to_process",
       (int)msgs_to_process.size());
   msgs_to_process.clear();
 }
@@ -332,10 +335,10 @@ bool ExplorationManager::capturePanorama()
   panorama::PanoramaGoal pan_goal;
   pan_goal.file_name = tf_prefix + "pan" + std::to_string(++pan_count);
   pan_ac->sendGoal(pan_goal, std::bind(&ExplorationManager::panDoneCB, this, std::placeholders::_1, std::placeholders::_2), &panActiveCB, &panFeedbackCB);
-  ROS_INFO("[exploration_manager]: sent panorama goal to action server");
+  ROS_INFO("[ExplorationManager]: sent panorama goal to action server");
   pan_ac->waitForResult();
   if (pan_file.size() == 0) {
-    ROS_ERROR("[exploration_manager]: Panorama action returned no file");
+    ROS_ERROR("[ExplorationManager]: Panorama action returned no file");
     --pan_count;
     return false;
   }
@@ -366,7 +369,7 @@ bool ExplorationManager::capturePanorama()
       // if the distance between poses is within the maximum scan range then it
       // is possible the other robot was captured: mark its pose as free
       if ((other_pose - my_pose).norm() < scan_range_max + 0.5) {
-        ROS_INFO_STREAM("[exploration_manager] Removing robot" << i << " at " << other_pose << " from my map");
+        ROS_INFO_STREAM("[ExplorationManager] Removing robot" << i << " at " << other_pose << " from my map");
         pan_grid.updateRobotCells(other_pose, 0.5);
       }
     }
@@ -398,7 +401,7 @@ bool ExplorationManager::capturePanorama()
       pan_pose.x = msg->pose.position.x;
       pan_pose.y = msg->pose.position.y;
       pan_pose_pub.publish(pan_pose);
-      ROS_INFO("[exploration_manager]: %s published panorama pose with id %d", tf_prefix.c_str(), pan_pose.goal_id);
+      ROS_INFO("[ExplorationManager]: %s published panorama pose with id %d", tf_prefix.c_str(), pan_pose.goal_id);
       break;
     }
   }
@@ -419,7 +422,7 @@ bool ExplorationManager::capturePanorama()
 // TODO: make sure actions are called properly
 void ExplorationManager::explorationLoop()
 {
-  ROS_INFO("[exploration_manager]: beginning exploration loop");
+  ROS_INFO("[ExplorationManager]: beginning exploration loop");
 
   //
   // Give the other components/robots time to load before staring exploration
@@ -427,7 +430,7 @@ void ExplorationManager::explorationLoop()
 
   ros::Rate countdown(1);
   for (int i = 5; i > 0; --i) {
-    ROS_INFO("[exploration_manager]: Beginning exploration in %d seconds...", i);
+    ROS_INFO("[ExplorationManager]: Beginning exploration in %d seconds...", i);
     countdown.sleep();
   }
 
@@ -438,12 +441,12 @@ void ExplorationManager::explorationLoop()
   //
 
   if (leader) {
-    ROS_INFO("[exploration_manager]: capturing initial panorama");
+    ROS_INFO("[ExplorationManager]: capturing initial panorama");
 
     string robot_frame = tf_prefix + "/base_link";
     geometry_msgs::TransformStamped tfs;
     if (!getTrans(robot_frame, tfs)) {
-      ROS_WARN("[exploration_manager] failed to fetch pose of robot for first panorama. Using (0.0, 0.0) as an initial guess for the robot.");
+      ROS_WARN("[ExplorationManager] failed to fetch pose of robot for first panorama. Using (0.0, 0.0) as an initial guess for the robot.");
       tfs.transform.translation.x = 0.0;
       tfs.transform.translation.y = 0.0;
     }
@@ -461,7 +464,7 @@ void ExplorationManager::explorationLoop()
     // TODO: find a better way of doing this
     while (shared_goals_count < robot_id) {
       countdown.sleep(); countdown.sleep();
-      ROS_INFO("[exploration_manager]: robot%d is waiting for %d goals to be received before beginning exploration", robot_id, robot_id);
+      ROS_INFO("[ExplorationManager]: robot%d is waiting for %d goals to be received before beginning exploration", robot_id, robot_id);
       ros::spinOnce();
     }
   }
@@ -525,7 +528,7 @@ void ExplorationManager::explorationLoop()
       for (auto goal_pair : goals) {
         double goal_diff = (goal_pt - goal_pair.point).norm();
         if (goal_diff < 0.5) {
-          ROS_INFO_STREAM("[exploration_manager]: goal: " << goal_pt <<
+          ROS_INFO_STREAM("[ExplorationManager]: goal: " << goal_pt <<
               " in proximity to goal: " << goal_pair.point <<
               " with id: " << goal_pair.id);
           ++goal_it;
@@ -540,11 +543,11 @@ void ExplorationManager::explorationLoop()
     // if all goals are disqualified: wait for a new map and then start planning again
     // TODO: add pause here?
     if (!goal_found) {
-      ROS_WARN("[exploration_manager]: failed to find a goal... will wait for new map");
+      ROS_WARN("[ExplorationManager]: failed to find a goal... will wait for new map");
       received_new_map = false;
       while (!received_new_map) {
         countdown.sleep();
-        ROS_INFO("[exploration_manager]: robot%d is waiting for a new map", robot_id);
+        ROS_INFO("[ExplorationManager]: robot%d is waiting for a new map", robot_id);
         ros::spinOnce();
       }
       continue;
@@ -588,13 +591,13 @@ void ExplorationManager::explorationLoop()
     move_ac->sendGoal(action_goal, std::bind(&ExplorationManager::moveDoneCB, this, std::placeholders::_1, std::placeholders::_2), &moveActiveCB, &moveFeedbackCB);
     move_ac->waitForResult();
     if (!navigation_succeeded) {
-      ROS_INFO("[exploration_manager]: Navigation failed. Restarting planning process.");
+      ROS_INFO("[ExplorationManager]: Navigation failed. Restarting planning process.");
       continue;
     }
 
     capturePanorama();
 
-    ROS_INFO("[exploration_manager]: Completed iteration loop %d", pan_count);
+    ROS_INFO("[ExplorationManager]: Completed iteration loop %d", pan_count);
   }
 
 }
