@@ -1,51 +1,80 @@
 <launch>
 
-  <arg name="ranging_radio" default="false"/>
-  <arg name="pano_save_dir" default="$(env HOME)/.ros/panoramas"/>
-  <arg name="radio_id"/>
+  <arg name="pano_save_dir"    default="$(env HOME)/.ros/panos" />
+  <arg name="tf_prefix"        default="$(env AGENT)" />
+  <arg name="slam"             default="true" /> <!-- true: use gmapping, false: use amcl -->
+  <arg name="map_topic"        default="map_hokuyo" /> <!-- topic hfn receives map on-->
+  <arg name="world_frame"      default="$(arg tf_prefix)/map_hokuyo" />
   <arg name="robot_id"/>
-  <arg name="tf_prefix"/>
   <arg name="leader"/>
 
-  <arg name="slam_only"     value="true"/>
+  <include if="$(arg slam)" file="$(find scarab)/launch/slam.launch">
+    <arg name="agent" value="$(arg tf_prefix)" />
+  </include>
+
+  <include unless="$(arg slam)" file="$(find scarab)/launch/localization.launch">
+    <arg name="agent"            value="$(arg tf_prefix)" />
+    <arg name="map_server"       value="false" />
+  </include>
 
   <group ns="$(arg tf_prefix)">
 
-    <!-- robot components -->
-    <include file="$(find scarab)/scarab.launch">
-      <arg name="tf_prefix" value="$(arg tf_prefix)"/>
+    <!-- static transform for xtion: base_link -> camera_link -->
+    <node pkg="scarab"
+          name="camera_tf_broadcaster"
+          type="camera_tf_broadcaster.py"
+          respawn="false"
+          output="screen">
+      <param name="agent" value="$(arg tf_prefix)" />
+    </node>
+
+    <!-- xtion tilt servo -->
+    <include file="$(find scarab)/launch/servo.launch"/>
+
+    <!-- reasonable defaults for the relative pose between xtion frames -->
+    <include file="$(find rgbd_launch)/launch/kinect_frames.launch">
+      <arg name="tf_prefix" value="$(arg tf_prefix)" />
     </include>
 
-    <!-- slam -->
-    <include file="$(find scarab)/gmapping.launch">
-      <arg name="tf_prefix" value="$(arg tf_prefix)"/>
+    <!-- human friendly navigation -->
+    <include file="$(find scarab)/launch/hfn.launch" >
+      <arg name="agent"          value="$(arg tf_prefix)" />
+      <arg name="use_vicon"      value="false" />
+      <arg name="map_topic"      value="$(arg map_topic)" />
+      <arg name="map_frame"      value="$(arg world_frame)" />
     </include>
 
-    <!-- navigation with hfn -->
-    <include file="$(find scarab)/hfn.launch">
-      <arg name="tf_prefix" value="$(arg tf_prefix)"/>
-    </include>
+    <!-- allows sending nav goals from rviz -->
+    <node name="goal_to_action" pkg="hfn" type="goal_to_action.py" output="screen">
+      <remap from="goal" to="move_base_simple/goal" />
+    </node>
 
     <!-- panorama nodelet -->
-    <include unless="$(arg slam_only)" file="$(find panorama)/launch/panorama_node.launch">
+    <include file="$(find panorama)/launch/panorama_nodelet.launch">
       <arg name="save_directory"      value="$(arg pano_save_dir)"/>
-      <arg name="world_frame"         value="$(arg tf_prefix)/map"/>
+      <arg name="world_frame"         value="$(arg world_frame)"/>
       <arg name="camera_frame"        value="$(arg tf_prefix)/camera_rgb_frame"/>
       <arg name="robot_frame"         value="$(arg tf_prefix)/base_link"/>
       <arg name="debug"               value="false"/>
       <arg name="spin_speed"          value="0.25"/>
       <arg name="number_of_frames"    value="30"/>
-      <arg name="continuous_capture"  value="false"/>
+      <arg name="continuous_capture"  value="true"/>
       <arg name="image_registration"  value="true"/>
       <arg name="exposure"            value="100"/>
     </include>
 
     <!-- exploration manager -->
-    <node pkg="csqmi_exploration" type="exploration_manager" 
-      name="exploration_manager" output="screen" unless="$(arg slam_only)">
+    <node pkg="csqmi_exploration"
+          type="exploration_manager"
+          name="exploration_manager"
+          output="screen">
       <param name="tf_prefix"         value="$(arg tf_prefix)"/>
       <param name="robot_id"          value="$(arg robot_id)"/>
       <param name="leader"            value="$(arg leader)"/>
+      <param name="pan_server_name"   value="panorama"/>
+      <param name="nav_server_name"   value="move"/>
+      <param name="world_frame"       value="$(arg world_frame)"/>
+      <param name="robot_frame"       value="$(arg tf_prefix)/base_link"/>
     </node>
 
   </group>

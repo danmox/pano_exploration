@@ -1,51 +1,21 @@
 <launch>
 
   <arg name="number_of_robots"    default="1"/>
-  <arg name="env_loader"          value="/home/brent/MAST/catkin_MAST_ws/src/scarab/scarab/env/scarab_env_loader.zsh"/>
 
   <!-- global params -->
-  <param name="/scan_range_min"   value="0.45"/>
-  <param name="/scan_range_max"   value="4.0"/>
   <param name="/number_of_robots" value="$(arg number_of_robots)"/>
+  <param name="/scan_range_min"   value="0.45"/>
+  <param name="/scan_range_max"   value="6.0"/>
+  <param name="/grid_resolution"  value="0.1" />
+  <param name="/pan_goal_tol"     value="0.5" />
 
   <!-- exploration visualization -->
   <node pkg="rviz" type="rviz" name="rviz" 
     args="-d $(find csqmi_exploration)/rviz/$(arg number_of_robots)robot.rviz"/>
 
-  <!-- rqt_console for logging -->
+  <!-- rqt_console for logging
   <node pkg="rqt_console" type="rqt_console" name="rqt_console"/>
-
-  <!-- Robot 1 -->
-  <machine name="scarab43" address="192.168.131.43" user="brent"
-      env-loader="$(arg env_loader)" default="true"/>
-  <include file="$(find csqmi_exploration)/launch/scarab.launch">
-    <arg name="pano_save_dir"   value="/home/brent/.ros/panoramas"/>
-    <arg name="tf_prefix"       value="robot1"/>
-    <arg name="radio_id"        value="101"/>
-    <arg name="ranging_radio"   value="$(arg ranging_radios)"/>
-    <arg name="robot_id"        value="1"/>
-    <arg name="leader"          value="true"/>
-  </include>
-
-  <!-- Robot 2
-  <machine name="robot2" address="192.168.1.152" user="odroid"
-    env-loader="~/catkin_ws/src/robot_io/launch/env/$(arg network)_env_loader.zsh"
-    default="true"/>
-  <include file="$(find csqmi_exploration)/launch/mast.launch">
-      <arg name="tf_prefix"       value="robot2"/>
-      <arg name="radio_id"        value="100"/>
-      <arg name="ranging_radio"   value="$(arg ranging_radios)"/>
-      <arg name="robot_id"        value="2"/>
-  </include>
  -->
-  <!-- Robot 3
-  <machine name="robot3" address="192.168.0.153" user="odroid"
-    env-loader="~/catkin_ws/src/robot_io/launch/env/$(arg network)_env_loader.zsh"
-    default="true"/>
-  <include file="$(find robot_io)/launch/mast.launch">
-      <arg name="tf_prefix"       value="robot3"/>
-      <arg name="radio_id"        value="104"/>
-      <arg name="ranging_radio"   value="$(arg ranging_radios)"/>
-  </include>
- -->
+  <!-- map_server -->
+
 </launch>

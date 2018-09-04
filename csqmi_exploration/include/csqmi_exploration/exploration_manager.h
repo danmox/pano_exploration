@@ -2,28 +2,20 @@
 #define CSQMI_EXPLORATION_EXPLORATION_MANAGER_H_
 
 #include <grid_mapping/angle_grid.h>
+#include <csqmi_planning/csqmi_planning.h>
 
 #include <ros/ros.h>
-
 #include <tf2_ros/transform_listener.h>
-
-#include <csqmi_planning/csqmi_planning.h>
 
 #include <actionlib/client/simple_action_client.h>
 #include <panorama/PanoramaAction.h>
 #include <scarab_msgs/MoveAction.h>
-#include <csqmi_exploration/PanGoal.h>
+#include <geometry_msgs/PoseStamped.h>
 
 #include <string.h>
 #include <vector>
 
 namespace csqmi_exploration {
-
-struct GoalIDPair
-{
-  grid_mapping::Point point;
-  int id;
-};
 
 class ExplorationManager
 {
@@ -36,8 +28,9 @@ class ExplorationManager
     volatile int shared_goals_count;
     volatile bool received_new_map, navigation_succeeded;
     bool leader;
-    double scan_range_min, scan_range_max;
-    std::string tf_prefix, pan_file;
+    double scan_range_min, scan_range_max, grid_res, pan_goal_tol;
+    std::string tf_prefix, pan_file, pan_server_name, nav_server_name, world_frame;
+    std::string robot_frame;
 
     // internal map
     grid_mapping::AngleGrid ang_grid;
@@ -45,8 +38,7 @@ class ExplorationManager
     // coordination variables
     ros::Publisher viz_map_pub, pan_grid_pub, pan_pose_pub, skel_pub, goal_pose_pub;
     std::vector<ros::Subscriber> coord_subs;
-    std::vector<grid_mapping::Point> pan_locations;
-    std::vector<GoalIDPair> goals;
+    std::vector<grid_mapping::Point> pan_locations, goal_locations;
 
     // tf2 variables
     tf2_ros::Buffer tfBuffer;
@@ -69,13 +61,12 @@ class ExplorationManager
 
     // subscriber callbacks
     void mapCB(const grid_mapping::OccupancyGridConstPtr& msg);
-    void goalPoseCB(const PanGoalConstPtr& msg);
-    void panPoseCB(const PanGoalConstPtr& msg);
+    void goalPoseCB(const geometry_msgs::PoseStamped::ConstPtr& msg);
 
     // exploration methods
     bool capturePanorama();
 
-    bool getTrans(std::string, geometry_msgs::TransformStamped&);
+    bool getWorldTrans(const std::string, geometry_msgs::TransformStamped&) const;
 
   public:
 
