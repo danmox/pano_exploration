@@ -35,13 +35,13 @@ int main(int argc, char** argv)
   bag.open(argv[1], rosbag::bagmode::Read);
 
   std::vector<cv::Mat> color_imgs, depth_imgs;
-  std::vector<std::string> topics = {"color", "depth"};
+  std::vector<std::string> topics = {"/color", "/depth"};
   for (auto m : rosbag::View(bag, rosbag::TopicQuery(topics))) {
-    if (m.getTopic().compare("color") == 0) {
+    if (m.getTopic().compare("/color") == 0) {
       cv::Mat rawc = ROSImageToMat(m.instantiate<sensor_msgs::Image>());
       cv::cvtColor(rawc, rawc, CV_BGR2RGB);
       color_imgs.push_back(rawc);
-    } else if (m.getTopic().compare("depth") == 0) {
+    } else if (m.getTopic().compare("/depth") == 0) {
       cv::Mat rawd = ROSImageToMat(m.instantiate<sensor_msgs::Image>());
       cv::Mat scaled_depth;
       rawd.convertTo(scaled_depth, CV_8UC1, 255.0/4000);

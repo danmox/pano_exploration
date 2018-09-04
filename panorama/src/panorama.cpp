@@ -281,7 +281,7 @@ void Panorama::captureLoop()
       as.publishFeedback(feedback);
 
       if (!continuous_capture) {
-        complete = frame >= number_of_frames;
+        complete = frame > number_of_frames;
       } else {
         complete = total_turn > sgn(spin_speed)*2.0*M_PI;
       }
