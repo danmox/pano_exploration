@@ -1,10 +1,14 @@
 <launch>
 
-  <arg name="pano_save_dir"    default="$(env HOME)/.ros/panos" />
-  <arg name="tf_prefix"        default="$(env AGENT)" />
-  <arg name="slam"             default="true" /> <!-- true: use gmapping, false: use amcl -->
-  <arg name="map_topic"        default="map_hokuyo" /> <!-- topic hfn receives map on-->
-  <arg name="world_frame"      default="$(arg tf_prefix)/map_hokuyo" />
+  <arg name="pano_save_dir" default="$(env HOME)/.ros/panos" />
+  <arg name="tf_prefix"     default="$(env AGENT)" />
+  <arg name="slam"          default="false" /> <!-- true: use gmapping, false: use amcl -->
+  <arg name="map_topic"     default="map_hokuyo" if="$(arg slam)"/>
+  <arg name="map_topic"     default="/map" unless="$(arg slam)"/>
+  <arg name="map_service"   default="/static_map" unless="$(arg slam)"/>
+  <arg name="world_frame"   default="$(arg tf_prefix)/map_hokuyo" if="$(arg slam)"/>
+  <arg name="world_frame"   default="map" unless="$(arg slam)"/>
+  <arg name="exposure"      default="25"/>
   <arg name="robot_id"/>
   <arg name="leader"/>
 
@@ -13,8 +17,10 @@
   </include>
 
   <include unless="$(arg slam)" file="$(find scarab)/launch/localization.launch">
-    <arg name="agent"            value="$(arg tf_prefix)" />
-    <arg name="map_server"       value="false" />
+    <arg name="agent"       value="$(arg tf_prefix)" />
+    <arg name="map_server"  value="false" />
+    <arg name="map_frame"   value="$(arg world_frame)"/>
+    <arg name="map_service" value="$(arg map_service)"/>
   </include>
 
   <group ns="$(arg tf_prefix)">
@@ -57,10 +63,10 @@
       <arg name="robot_frame"         value="$(arg tf_prefix)/base_link"/>
       <arg name="debug"               value="false"/>
       <arg name="spin_speed"          value="0.25"/>
-      <arg name="number_of_frames"    value="30"/>
-      <arg name="continuous_capture"  value="true"/>
+      <arg name="number_of_frames"    value="100"/>
+      <arg name="continuous_capture"  value="false"/>
       <arg name="image_registration"  value="true"/>
-      <arg name="exposure"            value="100"/>
+      <arg name="exposure"            value="$(arg exposure)"/>
     </include>
 
     <!-- exploration manager -->
