@@ -23,6 +23,9 @@
   <depend>sensor_msgs</depend>
   <depend>message_generation</depend>
   <depend>message_runtime</depend>
+  <depend>image_transport</depend>
+  <depend>libncurses-dev</depend>
+  <depend>tf2_ros</depend>
 
   <export>
   </export>

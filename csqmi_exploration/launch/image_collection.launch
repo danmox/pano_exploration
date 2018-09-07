@@ -1,0 +1,16 @@
+<launch>
+
+  <arg name="agent"    default="$(env AGENT)"/>
+  <arg name="save_dir" default="$(env HOME)/.ros/panos"/>
+  <arg name="image_topic" default="camera/rgb/image_rect_color"/>
+
+  <node pkg="csqmi_exploration"
+        type="image_collection"
+        name="image_collection"
+        output="screen"
+        ns="$(arg agent)">
+    <remap from="image" to="$(arg image_topic)"/>
+    <param name="bagfile_save_dir" value="$(arg save_dir)"/>
+  </node>
+
+</launch>

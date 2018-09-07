@@ -19,8 +19,11 @@ find_package(catkin REQUIRED COMPONENTS
   pcl_conversions
   sensor_msgs
   message_generation
+  image_transport
+  tf2_ros
 )
 
+find_package(Curses)
 find_package(OpenCV REQUIRED)
 find_package(PCL REQUIRED)
 
@@ -37,7 +40,7 @@ generate_messages(
 catkin_package(
   INCLUDE_DIRS include
   LIBRARIES ${PROJECT_NAME}
-  CATKIN_DEPENDS 
+  CATKIN_DEPENDS
     csqmi_planning
     grid_mapping
     nodelet
@@ -52,7 +55,11 @@ catkin_package(
     pcl_ros
     pcl_conversions
     message_runtime
-  DEPENDS OpenCV
+    image_transport
+    tf2_ros
+  DEPENDS
+    OpenCV
+    Curses
 )
 
 include_directories(
@@ -68,3 +75,6 @@ add_dependencies(exploration_manager ${PROJECT_NAME}_generate_messages_cpp)
 
 add_executable(skel_pointcloud src/pcl_visualization_test.cpp)
 target_link_libraries(skel_pointcloud ${catkin_LIBRARIES} ${OpenCV_LIBS} ${PCL_LIBRARIES})
+
+add_executable(image_collection src/image_collection.cpp)
+target_link_libraries(image_collection ${catkin_LIBRARIES} ${CURSES_LIBRARIES})
