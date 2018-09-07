@@ -29,9 +29,11 @@ ExplorationManager::ExplorationManager(ros::NodeHandle pnh_, ros::NodeHandle nh_
   nh(nh_),
   pnh(pnh_),
   pan_count(0),
+  heartbeat(0),
   shared_goals_count(0),
   received_new_map(false),
-  navigation_succeeded(true),
+  navigation_succeeded(false),
+  navigation_in_progress(false),
   ang_grid(grid_mapping::Point(0.0, 0.0), 0.1, 1, 1)
 {
 
@@ -41,6 +43,7 @@ ExplorationManager::ExplorationManager(ros::NodeHandle pnh_, ros::NodeHandle nh_
 
   tfListener.reset(new tf2_ros::TransformListener(tfBuffer));
 
+  activate_sub = nh.subscribe("activate", 2, &ExplorationManager::activateCB, this);
   viz_map_pub = nh.advertise<nav_msgs::OccupancyGrid>("map_2D", 2);
   pan_grid_pub = nh.advertise<grid_mapping::OccupancyGrid>("angle_grid", 2);
   skel_pub = nh.advertise<sensor_msgs::PointCloud2>("skeleton", 2);
@@ -132,6 +135,12 @@ void ExplorationManager::panDoneCB(const actionlib::SimpleClientGoalState& state
   }
 }
 
+// allow control over exploration
+void ExplorationManager::activateCB(const std_msgs::Bool::ConstPtr& msg)
+{
+  heartbeat = ros::Time::now();
+}
+
 //
 // hfn action action callbacks
 //
@@ -148,10 +157,12 @@ void moveActiveCB()
 void ExplorationManager::moveDoneCB(const actionlib::SimpleClientGoalState& state,
                                     const scarab_msgs::MoveResultConstPtr& result)
 {
+  navigation_in_progress = false;
   ROS_INFO("[ExplorationManager]: Navigation completed with status: %s", state.toString().c_str());
-  if (state != actionlib::SimpleClientGoalState::StateEnum::SUCCEEDED) {
+  if (state != actionlib::SimpleClientGoalState::StateEnum::SUCCEEDED)
     navigation_succeeded = false;
-  }
+  else
+    navigation_succeeded = true;
 }
 
 //
@@ -361,9 +372,10 @@ void ExplorationManager::explorationLoop()
   //
 
   ros::Rate countdown(1);
-  for (int i = 5; i > 0; --i) {
-    ROS_INFO("[ExplorationManager]: Beginning exploration in %d seconds...", i);
+  while ((ros::Time::now() - heartbeat).toSec() > 5.0) { // 5 second timeout
+    ROS_INFO_THROTTLE(10, "[ExplorationManager] exploration not active");
     countdown.sleep();
+    ros::spinOnce();
   }
 
   //
@@ -374,12 +386,9 @@ void ExplorationManager::explorationLoop()
 
   if (leader) {
     ROS_INFO("[ExplorationManager]: capturing initial panorama");
-
     capturePanorama();
-
   } else {
-    // TODO: find a better way of doing this
-    while (shared_goals_count < robot_id) {
+    while (shared_goals_count < robot_id) { // TODO: find a better way of doing this
       countdown.sleep(); countdown.sleep();
       ROS_INFO("[ExplorationManager]: robot%d is waiting for %d goals to be received before beginning exploration", robot_id, robot_id);
       ros::spinOnce();
@@ -392,8 +401,13 @@ void ExplorationManager::explorationLoop()
 
   while (ros::ok()) {
 
-    // get the latest information from the team
+    // get the latest information from the team and check if the exploration
+    // loop should exit
     ros::spinOnce();
+    if ((ros::Time::now() - heartbeat).toSec() > 5.0) { // 5 second timeout
+      ROS_INFO("[ExplorationManager] exiting exploration loop");
+      return;
+    }
 
     //
     // Compute next panorama capture location
@@ -448,11 +462,11 @@ void ExplorationManager::explorationLoop()
 
     // if all goals are disqualified: wait for a new map and then start planning again
     if (!goal_found) {
-      ROS_WARN("[ExplorationManager]: failed to find a goal... will wait for new map");
+      ROS_WARN("[ExplorationManager]: failed to find a goal: waiting for new map");
       received_new_map = false;
       while (!received_new_map) {
         countdown.sleep();
-        ROS_INFO("[ExplorationManager]: robot%d is waiting for a new map", robot_id);
+        ROS_INFO_THROTTLE(10, "[ExplorationManager]: waiting for a new map");
         ros::spinOnce();
       }
       continue;
@@ -487,10 +501,26 @@ void ExplorationManager::explorationLoop()
     scarab_msgs::MoveGoal action_goal;
     action_goal.target_poses.push_back(target_pose);
 
+    // check if exploration is still active
+    if ((ros::Time::now() - heartbeat).toSec() > 5.0) { // 5 second timeout
+      ROS_INFO("[ExplorationManager] exiting exploration loop");
+      return;
+    }
+
     // NOTE if navigation fails, target_goal will not be cleared from other
     // robot's goal_locations vectors and the location will be avoided
     move_ac->sendGoal(action_goal, std::bind(&ExplorationManager::moveDoneCB, this, std::placeholders::_1, std::placeholders::_2), &moveActiveCB, &moveFeedbackCB);
-    move_ac->waitForResult();
+    navigation_in_progress = true;
+    //move_ac->waitForResult();
+    while (navigation_in_progress) {
+      if ((ros::Time::now() - heartbeat).toSec() > 5.0) { // 5 second timeout
+        ROS_INFO("[ExplorationManager] exiting exploration loop");
+        return;
+      }
+      ros::spinOnce();
+      countdown.sleep();
+    }
+
     if (!navigation_succeeded) {
       ROS_INFO("[ExplorationManager]: Navigation failed. Restarting planning process.");
       continue;
