@@ -32,13 +32,14 @@ class ExplorationManager
     bool leader;
     double scan_range_min, scan_range_max, grid_res, pan_goal_tol;
     std::string tf_prefix, pan_file, pan_server_name, nav_server_name, world_frame;
-    std::string robot_frame;
+    std::string robot_frame, goal_method;
 
     // internal map
     grid_mapping::AngleGrid ang_grid;
 
     // coordination variables
     ros::Publisher viz_map_pub, pan_grid_pub, pan_pose_pub, skel_pub, goal_pose_pub;
+    ros::Publisher frontier_grid_pub;
     std::vector<ros::Subscriber> coord_subs;
     ros::Subscriber activate_sub; // allow high level control of exploration
     std::vector<grid_mapping::Point> pan_locations, goal_locations;
@@ -67,10 +68,11 @@ class ExplorationManager
     void goalPoseCB(const geometry_msgs::PoseStamped::ConstPtr& msg);
     void activateCB(const std_msgs::Bool::ConstPtr& msg);
 
-    // exploration methods
     bool capturePanorama();
-
     bool getWorldTrans(const std::string, geometry_msgs::TransformStamped&) const;
+    std::vector<std::vector<grid_mapping::Point>> findFrontiers();
+    bool frontierGoal(grid_mapping::Point&);
+    bool csqmiGoal(grid_mapping::Point&);
 
   public:
 

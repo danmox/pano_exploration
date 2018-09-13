@@ -66,6 +66,7 @@
       <arg name="number_of_frames"    value="100"/>
       <arg name="continuous_capture"  value="false"/>
       <arg name="image_registration"  value="true"/>
+      <arg name="camera_auto_settings" value="true"/>
       <arg name="exposure"            value="$(arg exposure)"/>
     </include>
 

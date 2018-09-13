@@ -19,6 +19,7 @@
 #include <sstream>
 #include <algorithm>
 #include <functional>
+#include <stack>
 
 namespace csqmi_exploration {
 
@@ -48,6 +49,7 @@ ExplorationManager::ExplorationManager(ros::NodeHandle pnh_, ros::NodeHandle nh_
   pan_grid_pub = nh.advertise<grid_mapping::OccupancyGrid>("angle_grid", 2);
   skel_pub = nh.advertise<sensor_msgs::PointCloud2>("skeleton", 2);
   goal_pose_pub = nh.advertise<geometry_msgs::PoseStamped>("goal_pose", 2);
+  frontier_grid_pub = nh.advertise<nav_msgs::OccupancyGrid>("frontier_map", 2);
 
   if (!pnh.getParam("tf_prefix", tf_prefix) ||
       !pnh.getParam("robot_id", robot_id) ||
@@ -63,7 +65,8 @@ ExplorationManager::ExplorationManager(ros::NodeHandle pnh_, ros::NodeHandle nh_
       !nh.getParam("/scan_range_min", scan_range_min) ||
       !nh.getParam("/scan_range_max", scan_range_max) ||
       !nh.getParam("/grid_resolution", grid_res) ||
-      !nh.getParam("/pan_goal_tol", pan_goal_tol)) {
+      !nh.getParam("/pan_goal_tol", pan_goal_tol) ||
+      !nh.getParam("/goal_method", goal_method)) {
     ROS_FATAL("[ExplorationManager]: failed to read global params from server");
     exit(EXIT_FAILURE);
   }
@@ -214,6 +217,25 @@ void addPixelToPC(const grid_mapping::AngleGrid& grid,
   point_cloud.width++;
 }
 
+void addPointToPC(CloudXYZRGB& point_cloud,
+                  grid_mapping::Point point,
+                  int r, int g, int b)
+{
+  pcl::PointXYZRGB pcl_point(r,g,b);
+  pcl_point.x = point.x;
+  pcl_point.y = point.y;
+  point_cloud.points.push_back(pcl_point);
+  point_cloud.width++;
+}
+
+void addPointsToPC(CloudXYZRGB& point_cloud,
+                   std::vector<grid_mapping::Point>& points,
+                   int r, int g, int b)
+{
+  for (auto pt : points)
+    addPointToPC(point_cloud, pt, r, g, b);
+}
+
 void addPixelsToPC(const grid_mapping::AngleGrid& grid,
                    CloudXYZRGB& point_cloud,
                    std::vector<cv::Point>& pixels,
@@ -358,11 +380,156 @@ bool inProximity(const grid_mapping::Point& pt,
   return false;
 }
 
+
+// find next panorama location using csqmi
+bool ExplorationManager::csqmiGoal(grid_mapping::Point& goal_pt)
+{
+     // compute skeleton
+    cv::Mat skel;
+    computeSkeleton(ang_grid, skel, 2);
+
+    // get the latest information from the team
+    ros::spinOnce();
+
+    // partition skeleton into regions divided by past panorama capture locations
+    std::vector<cv::Point> pan_pixels;
+    for (auto pt : pan_locations) {
+      cv::Point po;
+      ang_grid.positionToSubscripts(pt, po.y, po.x);
+      pan_pixels.push_back(po);
+    }
+    regions_vec regions = partitionSkeleton(skel, pan_pixels);
+
+    // find the point of each region with the hightest CSQMI: these are the goals
+    std::vector<InfoPxPair> goal_pairs;
+    for (auto& indices : regions) {
+      std::vector<InfoPxPair> reg = objective->csqmi(ang_grid, indices);
+      auto max_el = *max_element(reg.begin(), reg.end(), InfoPxPair::lesser);
+      goal_pairs.push_back(max_el);
+    }
+
+    // sort highest to lowest csqmi
+    std::sort(goal_pairs.begin(), goal_pairs.end(), InfoPxPair::greater);
+
+    // get the latest information from the team
+    ros::spinOnce();
+
+    // choose the goal point, ensuring agents don't choose the same point
+    bool goal_found = false;
+    auto it = goal_pairs.begin();
+    for (; it != goal_pairs.end(); ++it) {
+      goal_pt = ang_grid.subscriptsToPosition(it->px.y, it->px.x);
+
+      // make sure agent goals are not in proximity
+      if (!inProximity(goal_pt, goal_locations, pan_goal_tol)) {
+        goal_found = true;
+        break;
+      } else {
+        ROS_INFO_STREAM("[ExplorationManager]: ignoring goal " << goal_pt <<
+                        "in proximity to other goal");
+      }
+    }
+
+    if (!goal_found)
+      return false;
+
+    // Publish sensor_msgs::PointCloud2 of the skeleton, max points, and goal
+
+    CloudXYZRGB skel_pc = skeletonToPC(ang_grid, regions, 0, 0, 255);
+    addPixelsToPC(ang_grid, skel_pc, pan_pixels, 255, 0, 0);
+    addPixelsToPC(ang_grid, skel_pc, goal_pairs, 255, 255, 0);
+    addPixelToPC(ang_grid, skel_pc, it->px, 0, 255, 0);
+
+    sensor_msgs::PointCloud2 skel_pc_msg;
+    pcl::toROSMsg(skel_pc, skel_pc_msg);
+    skel_pc_msg.header.frame_id = world_frame;
+    skel_pub.publish(skel_pc_msg);
+
+    return true;
+}
+
+
+// find next panorama location using near frontier
+bool ExplorationManager::frontierGoal(grid_mapping::Point& goal_pt)
+{
+  std::vector<std::vector<grid_mapping::Point>> frontiers = findFrontiers();
+  if (frontiers.empty()) {
+    ROS_WARN("[ExplorationManager] no frontiers found");
+    return false;
+  }
+
+  // find near frontier
+  double min_frontier_dist = -1.0;
+  for (auto frontier : frontiers) {
+
+    // compute centroid
+    double centroid_x = 0.0, centroid_y = 0.0;
+    for (grid_mapping::Point pt : frontier) {
+      centroid_x += pt.x;
+      centroid_y += pt.y;
+    }
+    centroid_x /= (double)frontier.size();
+    centroid_y /= (double)frontier.size();
+    int centroid = ang_grid.positionToIndex(centroid_x, centroid_y);
+
+    // if the centroid is not in free space, attempt to find some nearby
+    bool centroid_found = true;
+    if (ang_grid.cellProb(centroid) > 0.05) {
+      ROS_INFO("[ExplorationManager] relocating frontier centroid");
+      centroid_found = false;
+      for (int cell : ang_grid.neighborIndices(centroid, 0.5)) {
+        if (ang_grid.cellProb(centroid) > 0.05) {
+          centroid = cell;
+          centroid_found = true;
+        }
+      }
+    }
+
+    if (!centroid_found) {
+      ROS_ERROR("[ExplorationManager] no free space near computed frontier centroid");
+      continue;
+    }
+
+    // compute path distance and compare to other frontiers
+
+    grid_mapping::Point robot_pt = pan_locations.back(); // TODO for multi-agent
+    grid_mapping::Point frontier_pt = ang_grid.indexToPosition(centroid);
+    double new_dist = (frontier_pt - robot_pt).norm();
+    if (min_frontier_dist < 0.0 || new_dist < min_frontier_dist) {
+      goal_pt = frontier_pt;
+      min_frontier_dist = new_dist;
+    }
+  }
+
+  if (min_frontier_dist < 0.0) {
+    ROS_ERROR("[ExplorationManager] no nearest frontier found");
+    return false;
+  }
+
+  //
+  // Publish frontiers as point cloud
+  //
+
+  CloudXYZRGB frontiers_pc;
+  for (auto frontier : frontiers)
+    addPointsToPC(frontiers_pc, frontier, 0, 0, 255);
+  addPointToPC(frontiers_pc, goal_pt, 0, 255, 0);
+  frontiers_pc.width = frontiers_pc.points.size();
+  frontiers_pc.height = 1;
+  frontiers_pc.is_dense = false;
+
+  sensor_msgs::PointCloud2 ros_pc_msg;
+  pcl::toROSMsg(frontiers_pc, ros_pc_msg);
+  ros_pc_msg.header.frame_id = world_frame;
+  skel_pub.publish(ros_pc_msg);
+
+  return true;
+}
+
 //
 // main exploration loop
 //
 
-// TODO: make sure actions are called properly
 void ExplorationManager::explorationLoop()
 {
   ROS_INFO("[ExplorationManager]: beginning exploration loop");
@@ -413,51 +580,12 @@ void ExplorationManager::explorationLoop()
     // Compute next panorama capture location
     //
 
-    // compute skeleton
-    cv::Mat skel;
-    computeSkeleton(ang_grid, skel, 2);
-
-    // get the latest information from the team
-    ros::spinOnce();
-
-    // partition skeleton into regions divided by past panorama capture locations
-    std::vector<cv::Point> pan_pixels;
-    for (auto pt : pan_locations) {
-      cv::Point po;
-      ang_grid.positionToSubscripts(pt, po.y, po.x);
-      pan_pixels.push_back(po);
-    }
-    regions_vec regions = partitionSkeleton(skel, pan_pixels);
-
-    // find the point of each region with the hightest CSQMI: these are the goals
-    std::vector<InfoPxPair> goal_pairs;
-    for (auto& indices : regions) {
-      std::vector<InfoPxPair> reg = objective->csqmi(ang_grid, indices);
-      auto max_el = *max_element(reg.begin(), reg.end(), InfoPxPair::lesser);
-      goal_pairs.push_back(max_el);
-    }
-
-    // sort highest to lowest csqmi
-    std::sort(goal_pairs.begin(), goal_pairs.end(), InfoPxPair::greater);
-
-    // get the latest information from the team
-    ros::spinOnce();
-
-    // choose the goal point, ensuring agents don't choose the same point
-    grid_mapping::Point goal_pt;
     bool goal_found = false;
-    auto it = goal_pairs.begin();
-    for (; it != goal_pairs.end(); ++it) {
-      goal_pt = ang_grid.subscriptsToPosition(it->px.y, it->px.x);
-
-      // make sure agent goals are not in proximity
-      if (!inProximity(goal_pt, goal_locations, pan_goal_tol)) {
-        goal_found = true;
-        break;
-      } else {
-        ROS_INFO_STREAM("[ExplorationManager]: ignoring goal " << goal_pt <<
-                        "in proximity to other goal");
-      }
+    grid_mapping::Point goal_pt;
+    if (goal_method == "frontier") {
+      goal_found = frontierGoal(goal_pt);
+    } else {
+      goal_found = csqmiGoal(goal_pt);
     }
 
     // if all goals are disqualified: wait for a new map and then start planning again
@@ -471,20 +599,6 @@ void ExplorationManager::explorationLoop()
       }
       continue;
     }
-
-    //
-    // Publish sensor_msgs::PointCloud2 of the skeleton, max points, and goal
-    //
-
-    CloudXYZRGB skel_pc = skeletonToPC(ang_grid, regions, 0, 0, 255);
-    addPixelsToPC(ang_grid, skel_pc, pan_pixels, 255, 0, 0);
-    addPixelsToPC(ang_grid, skel_pc, goal_pairs, 255, 255, 0);
-    addPixelToPC(ang_grid, skel_pc, it->px, 0, 255, 0);
-
-    sensor_msgs::PointCloud2 skel_pc_msg;
-    pcl::toROSMsg(skel_pc, skel_pc_msg);
-    skel_pc_msg.header.frame_id = world_frame;
-    skel_pub.publish(skel_pc_msg);
 
     //
     // Navigate to the goal point
@@ -532,5 +646,83 @@ void ExplorationManager::explorationLoop()
   }
 
 }
+
+
+bool hasUnknownNeighbor(const std::vector<int> cells,
+                        const nav_msgs::OccupancyGrid& grid)
+{
+  for (int cell : cells)
+    if (grid.data[cell] == 50)
+      return true;
+  return false;
+}
+
+
+std::vector<std::vector<grid_mapping::Point>> ExplorationManager::findFrontiers()
+{
+  // apply threshold
+  nav_msgs::OccupancyGrid frontier_grid = *ang_grid.createROSOGMsg();
+  nav_msgs::OccupancyGrid tmp_map = frontier_grid;
+  for (signed char& cell : frontier_grid.data)
+    if (cell < 50)
+      cell = 0;
+  for (int idx = 0; idx < frontier_grid.data.size(); ++idx) {
+    if (tmp_map.data[idx] > 50) {
+      frontier_grid.data[idx] = 100;
+      for (int n : ang_grid.neighborIndices(idx, 0.3))
+        frontier_grid.data[n] = 100;
+    }
+  }
+
+  frontier_grid_pub.publish(frontier_grid);
+
+  // find unknown cells bordering the free space connected to the robot
+  std::vector<std::vector<grid_mapping::Point>> frontiers;
+  std::stack<int> conn_free_cells; // free cells connected to the robot
+  conn_free_cells.push(ang_grid.positionToIndex(pan_locations.back()));
+  while (!conn_free_cells.empty()) {
+    int cell = conn_free_cells.top();
+    conn_free_cells.pop();
+    frontier_grid.data[cell] = 100;
+
+    for (int n : ang_grid.neighborIndices(cell)) {
+      if (frontier_grid.data[n] == 0)
+        conn_free_cells.push(n);
+      else if (frontier_grid.data[n] == 50) {
+
+        // travel along frontier
+        std::stack<int> next_frontier_cells;
+        next_frontier_cells.push(cell);
+        std::vector<int> frontier;
+        while (!next_frontier_cells.empty()) {
+          int current_cell = next_frontier_cells.top();
+          next_frontier_cells.pop();
+          frontier_grid.data[current_cell] = 100;
+          frontier.push_back(current_cell);
+
+          // find neighbor frontier cells
+          for (int n : ang_grid.neighborIndices(current_cell))
+            if (frontier_grid.data[n] == 0)
+              if (hasUnknownNeighbor(ang_grid.neighborIndices(n), frontier_grid))
+                next_frontier_cells.push(n);
+        }
+
+        // ensure frontier is big enough
+        if (frontier.size() > 1.0/ang_grid.resolution) {
+          ROS_INFO("[ExplorationManager] found frontier with %ld cells", frontier.size());
+          std::vector<grid_mapping::Point> pt_frontier;
+          for (int cell : frontier)
+            pt_frontier.push_back(ang_grid.indexToPosition(cell));
+          frontiers.push_back(pt_frontier);
+        }
+
+        break; // exits: for (int n : ang_grid.neighborIndices(cell))
+      }
+    }
+  }
+
+  return frontiers;
+}
+
 
 } // namespace csqmi_exploration
