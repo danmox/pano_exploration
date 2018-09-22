@@ -566,14 +566,16 @@ void ExplorationManager::explorationLoop()
   // exploration loop
   //
 
+  double heartbeat_timeout = 1.0; // 1 second timeout
   while (ros::ok()) {
 
     // get the latest information from the team and check if the exploration
-    // loop should exit
+    // loop should pause
     ros::spinOnce();
-    if ((ros::Time::now() - heartbeat).toSec() > 5.0) { // 5 second timeout
-      ROS_INFO("[ExplorationManager] exiting exploration loop");
-      return;
+    while ((ros::Time::now() - heartbeat).toSec() > heartbeat_timeout) {
+      ROS_INFO_THROTTLE(10, "[ExplorationManager] exploration not active");
+      countdown.sleep();
+      ros::spinOnce();
     }
 
     //
@@ -583,8 +585,10 @@ void ExplorationManager::explorationLoop()
     bool goal_found = false;
     grid_mapping::Point goal_pt;
     if (goal_method == "frontier") {
+      ROS_INFO("[ExplorationManager]: using frontier exploration");
       goal_found = frontierGoal(goal_pt);
     } else {
+      ROS_INFO("[ExplorationManager]: using csqmi exploration");
       goal_found = csqmiGoal(goal_pt);
     }
 
@@ -616,9 +620,10 @@ void ExplorationManager::explorationLoop()
     action_goal.target_poses.push_back(target_pose);
 
     // check if exploration is still active
-    if ((ros::Time::now() - heartbeat).toSec() > 5.0) { // 5 second timeout
-      ROS_INFO("[ExplorationManager] exiting exploration loop");
-      return;
+    while ((ros::Time::now() - heartbeat).toSec() > heartbeat_timeout) {
+      ROS_INFO_THROTTLE(10, "[ExplorationManager] exploration not active");
+      countdown.sleep();
+      ros::spinOnce();
     }
 
     // NOTE if navigation fails, target_goal will not be cleared from other
@@ -627,10 +632,6 @@ void ExplorationManager::explorationLoop()
     navigation_in_progress = true;
     //move_ac->waitForResult();
     while (navigation_in_progress) {
-      if ((ros::Time::now() - heartbeat).toSec() > 5.0) { // 5 second timeout
-        ROS_INFO("[ExplorationManager] exiting exploration loop");
-        return;
-      }
       ros::spinOnce();
       countdown.sleep();
     }
@@ -638,6 +639,13 @@ void ExplorationManager::explorationLoop()
     if (!navigation_succeeded) {
       ROS_INFO("[ExplorationManager]: Navigation failed. Restarting planning process.");
       continue;
+    }
+
+    // check if exploration is still active
+    while ((ros::Time::now() - heartbeat).toSec() > heartbeat_timeout) {
+      ROS_INFO_THROTTLE(10, "[ExplorationManager] exploration not active");
+      countdown.sleep();
+      ros::spinOnce();
     }
 
     capturePanorama();
