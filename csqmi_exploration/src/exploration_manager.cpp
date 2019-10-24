@@ -139,9 +139,9 @@ void ExplorationManager::panDoneCB(const actionlib::SimpleClientGoalState& state
 }
 
 // allow control over exploration
-void ExplorationManager::activateCB(const std_msgs::Bool::ConstPtr& msg)
+void ExplorationManager::activateCB(const std_msgs::Header::ConstPtr& msg)
 {
-  heartbeat = ros::Time::now();
+  heartbeat = msg->stamp;
 }
 
 //
@@ -477,10 +477,11 @@ bool ExplorationManager::frontierGoal(grid_mapping::Point& goal_pt)
     if (ang_grid.cellProb(centroid) > 0.05) {
       ROS_INFO("[ExplorationManager] relocating frontier centroid");
       centroid_found = false;
-      for (int cell : ang_grid.neighborIndices(centroid, 0.5)) {
+      for (int cell : ang_grid.neighborIndices(centroid, 0.2)) {
         if (ang_grid.cellProb(centroid) > 0.05) {
           centroid = cell;
           centroid_found = true;
+          break;
         }
       }
     }
@@ -620,6 +621,7 @@ void ExplorationManager::explorationLoop()
     action_goal.target_poses.push_back(target_pose);
 
     // check if exploration is still active
+    ros::spinOnce();
     while ((ros::Time::now() - heartbeat).toSec() > heartbeat_timeout) {
       ROS_INFO_THROTTLE(10, "[ExplorationManager] exploration not active");
       countdown.sleep();
@@ -716,7 +718,7 @@ std::vector<std::vector<grid_mapping::Point>> ExplorationManager::findFrontiers(
         }
 
         // ensure frontier is big enough
-        if (frontier.size() > 1.0/ang_grid.resolution) {
+        if (frontier.size() > 0.75/ang_grid.resolution) {
           ROS_INFO("[ExplorationManager] found frontier with %ld cells", frontier.size());
           std::vector<grid_mapping::Point> pt_frontier;
           for (int cell : frontier)

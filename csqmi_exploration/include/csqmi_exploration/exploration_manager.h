@@ -6,7 +6,7 @@
 
 #include <ros/ros.h>
 #include <tf2_ros/transform_listener.h>
-#include <std_msgs/Bool.h>
+#include <std_msgs/Header.h>
 
 #include <actionlib/client/simple_action_client.h>
 #include <panorama/PanoramaAction.h>
@@ -66,7 +66,7 @@ class ExplorationManager
     // subscriber callbacks
     void mapCB(const grid_mapping::OccupancyGridConstPtr& msg);
     void goalPoseCB(const geometry_msgs::PoseStamped::ConstPtr& msg);
-    void activateCB(const std_msgs::Bool::ConstPtr& msg);
+    void activateCB(const std_msgs::Header::ConstPtr& msg);
 
     bool capturePanorama();
     bool getWorldTrans(const std::string, geometry_msgs::TransformStamped&) const;

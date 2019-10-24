@@ -11,7 +11,7 @@
   <param name="/scan_range_max"   value="5.0"/>
   <param name="/grid_resolution"  value="0.1"/>
   <param name="/pan_goal_tol"     value="0.5"/>
-  <param name="/goal_method"      value="csqmi"/>
+  <param name="/goal_method"      value="frontier"/>
 
   <!-- exploration visualization -->
   <node pkg="rviz"

@@ -13,7 +13,7 @@ std::vector<double> computePEs(const std::vector<double> &o)
 {
   size_t pew_size = o.size() + 1;
 
-  std::vector<double> pe(pew_size, 0.0); 
+  std::vector<double> pe(pew_size, 0.0);
   double product = 1.0;
   pe[1] = o[0];
   for (int j = 2; j < pew_size; ++j) {
@@ -25,12 +25,12 @@ std::vector<double> computePEs(const std::vector<double> &o)
   return pe;
 }
 
-std::vector<double> computeWeights(const std::vector<double> &o, 
+std::vector<double> computeWeights(const std::vector<double> &o,
     const std::vector<double> &pe)
 {
   size_t pew_size = o.size()+1;
 
-  std::vector<double> w(pew_size, 0.0); 
+  std::vector<double> w(pew_size, 0.0);
   double product = 1;
   w[0] = pow(pe[0], 2);
   w.back() = pow(pe.back(), 2);
@@ -43,7 +43,7 @@ std::vector<double> computeWeights(const std::vector<double> &o,
 }
 
 // determine if beam can reasonably be considered independent
-bool CSQMI::isIndependent(const std::vector<double> &pe, 
+bool CSQMI::isIndependent(const std::vector<double> &pe,
     const std::vector<int>& cells, hit_map& any_hit)
 {
   std::unordered_map<int, double>::iterator it, end = any_hit.end();
@@ -54,7 +54,7 @@ bool CSQMI::isIndependent(const std::vector<double> &pe,
   return true;
 }
 
-void CSQMI::updateAnyHit(const std::vector<double> &pe, 
+void CSQMI::updateAnyHit(const std::vector<double> &pe,
     const std::vector<int>& cells, hit_map& any_hit)
 {
   std::unordered_map<int, double>::iterator it;
@@ -68,10 +68,10 @@ void CSQMI::updateAnyHit(const std::vector<double> &pe,
 }
 
 // CSQMI algorithm for a single beam
-double CSQMI::beam_csqmi(const std::vector<double> &o, 
+double CSQMI::beam_csqmi(const std::vector<double> &o,
     const std::vector<int> &cells, hit_map& any_hit)
 {
-  // calculate probability values p(e_i) 
+  // calculate probability values p(e_i)
   std::vector<double> pe = computePEs(o);
 
   // determine if the beam is reasonably independent
@@ -103,8 +103,8 @@ double CSQMI::beam_csqmi(const std::vector<double> &o,
     // compute distance along beam and enforce the sensor's min range
     double uj = j * cell_increment;
     if (uj < sensor.min_range) uj = 0.0;
-    
-    // only consider B cells on either side of c_j since Gaussians fall 
+
+    // only consider B cells on either side of c_j since Gaussians fall
     // off dramatically a few standard deviations away from the mean
     int start_index = j - B;
     if (start_index < 0) start_index = 0;
@@ -128,7 +128,7 @@ double CSQMI::beam_csqmi(const std::vector<double> &o,
   return mi;
 }
 
-double CSQMI::csqmi(const grid_mapping::AngleGrid& grid, 
+double CSQMI::csqmi(const grid_mapping::AngleGrid& grid,
     const grid_mapping::Point& ray_start)
 {
   double mi = 0.0;
@@ -144,7 +144,7 @@ double CSQMI::csqmi(const grid_mapping::AngleGrid& grid,
 
     // determine ray endpoints
     double angle = ((double)(index)) * angle_increment;
-    grid_mapping::Point ray_end = ray_start + 
+    grid_mapping::Point ray_end = ray_start +
       sensor.max_range*grid_mapping::Point(cos(angle), sin(angle));
 
     // find cells along the beam

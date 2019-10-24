@@ -25,8 +25,8 @@ class Gaussian
     double stdev, a, b;
 
   public:
-    Gaussian(double stdev_) : 
-      stdev(stdev_) 
+    Gaussian(double stdev_) :
+      stdev(stdev_)
     {
       a = 1.0 / (stdev_ * sqrt(2.0*M_PI));
       b = -1.0 / (2.0 * pow(stdev_, 2.0));
@@ -72,7 +72,7 @@ class CSQMI
     const Gaussian N;
     const double independence_threshold;
 
-    bool isIndependent(const std::vector<double>&, const std::vector<int>&, 
+    bool isIndependent(const std::vector<double>&, const std::vector<int>&,
         hit_map&);
     void updateAnyHit(const std::vector<double>&, const std::vector<int>&,
         hit_map&);

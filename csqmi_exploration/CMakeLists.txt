@@ -78,3 +78,6 @@ target_link_libraries(skel_pointcloud ${catkin_LIBRARIES} ${OpenCV_LIBS} ${PCL_L
 
 add_executable(image_collection src/image_collection.cpp)
 target_link_libraries(image_collection ${catkin_LIBRARIES} ${CURSES_LIBRARIES})
+
+add_executable(heartbeat_publisher src/heartbeat_pub.cpp)
+target_link_libraries(heartbeat_publisher ${catkin_LIBRARIES})
